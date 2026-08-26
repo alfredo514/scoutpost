@@ -1,13 +1,14 @@
 {
-  "_staging_note": "Underscore prefix means the importer SKIPS this file. Rename to barcelona-2026.json once the event name and date are confirmed. Cards are written as names exactly as published; the importer resolves them and prefers the base printing when several exist.",
+  "_note": "Two-day event: Sat 2026-08-22 main event (2,130 competitors), Sun 2026-08-23 day two (379 advanced) where the top 8 was decided. Recorded under the Sunday date because that is when these standings were set. Attendance uses the 2,130 figure published by Riot; a secondary source reports 2,224, so treat the exact number as approximate. Cards are written as names exactly as published; the importer resolves each to its base printing.",
 
-  "id": "barcelona-2026",
-  "name": "TODO — official event name",
-  "date": "TODO-YYYY-MM-DD",
+  "id": "riftbound-regional-qualifier-barcelona-2026",
+  "name": "Riftbound Regional Qualifier — Barcelona",
+  "date": "2026-08-23",
   "format": "constructed",
   "city": "Barcelona",
   "country": "ES",
   "player_count": 2130,
+  "source_url": "https://playriftbound.com/en-us/news/organizedplay/barcelonas-top-decks/",
 
   "decks": [
     {
