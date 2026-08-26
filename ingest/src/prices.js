@@ -185,8 +185,19 @@ export async function collectPrices(db, groups) {
       if (!subtypes) continue; // product exists but had no price row today
 
       for (const card of candidates) {
+        // Prefer the printing that matches the card's finish, but fall back to
+        // whatever subtype TCGplayer actually lists. This matters more than it
+        // looks: in Riftbound, rares and epics are sold FOIL-ONLY — those
+        // products have a 'Foil' row and no 'Normal' row at all. Falling back
+        // only to 'Normal' silently dropped ~97% of rares and epics, which are
+        // exactly the cards that dominate a deck's build cost.
         const wanted = card.finish === 'foil' ? 'Foil' : 'Normal';
-        const price = subtypes[wanted] ?? subtypes.Normal ?? null;
+        const price =
+          subtypes[wanted] ??
+          subtypes.Normal ??
+          subtypes.Foil ??
+          Object.values(subtypes)[0] ??
+          null;
         if (!price) continue;
         if (price.market === null && price.low === null) continue; // nothing usable
 
