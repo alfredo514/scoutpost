@@ -6,10 +6,9 @@ name = "scoutpost-route"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# The Pages deployment this proxies to. Set to your *.pages.dev URL, or a
-# dedicated hostname if you attach one to the Pages project.
+# The site Worker this proxies to.
 [vars]
-PAGES_ORIGIN = "https://scoutpost.pages.dev"
+PAGES_ORIGIN = "https://scoutpost.scoutpost.workers.dev"
 
 # Requires softsauce.co to be an active zone on this Cloudflare account.
 [[routes]]
