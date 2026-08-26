@@ -1,0 +1,26 @@
+{
+  "_comment": "Copy this file, rename it to your event slug, and fill it in. Delete this _comment line. Card codes are SET-NUMBER as printed (OGN-001). Variants use the printed suffix (OGN-007a). Every code is checked against the live Riftscribe catalogue at import time — a typo fails the import rather than silently producing a cheap deck.",
+
+  "id": "my-event-2026",
+  "name": "My Event 2026",
+  "date": "2026-08-15",
+  "format": "standard",
+  "store": "Venue or organiser name",
+  "city": "Seattle",
+  "state": "WA",
+  "country": "US",
+  "source_url": "https://example.com/where-the-lists-were-published",
+
+  "decks": [
+    {
+      "placement": 1,
+      "player": "Player Name",
+      "legend": "Deck archetype or legend",
+      "notes": "Optional one-line note about the list.",
+      "cards": [
+        { "code": "OGN-001", "qty": 3 },
+        { "code": "OGN-007a", "qty": 1 }
+      ]
+    }
+  ]
+}

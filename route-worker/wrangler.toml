@@ -1,0 +1,17 @@
+#:schema node_modules/wrangler/config-schema.json
+# Serves the Pages project at softsauce.co/scoutpost without touching the
+# existing origin. Delete this Worker entirely if Scoutpost moves to its own
+# domain — then point the domain at Pages and set BASE_PATH="/".
+name = "scoutpost-route"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# The Pages deployment this proxies to. Set to your *.pages.dev URL, or a
+# dedicated hostname if you attach one to the Pages project.
+[vars]
+PAGES_ORIGIN = "https://scoutpost.pages.dev"
+
+# Requires softsauce.co to be an active zone on this Cloudflare account.
+[[routes]]
+pattern = "softsauce.co/scoutpost*"
+zone_name = "softsauce.co"

@@ -1,0 +1,24 @@
+{
+  "name": "scoutpost",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Riftbound TCG top-8 decklists with live build costs.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "db:create": "wrangler d1 create scoutpost",
+    "db:schema": "wrangler d1 execute scoutpost --remote --file=db/schema.sql",
+    "db:schema:local": "wrangler d1 execute scoutpost --local --file=db/schema.sql",
+    "import": "node scripts/import-decks.mjs",
+    "import:apply": "wrangler d1 execute scoutpost --remote --file=build/import.sql",
+    "dev": "wrangler pages dev public --d1=DB=scoutpost --compatibility-date=2026-08-01",
+    "deploy:ingest": "wrangler deploy --config ingest/wrangler.toml",
+    "deploy:route": "wrangler deploy --config route-worker/wrangler.toml",
+    "ingest:manual": "wrangler tail scoutpost-ingest"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

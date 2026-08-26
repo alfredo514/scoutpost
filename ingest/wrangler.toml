@@ -1,0 +1,23 @@
+#:schema node_modules/wrangler/config-schema.json
+# Scoutpost ingestion worker (standalone — Pages cannot run cron triggers).
+#
+# Deploy:  cd ingest && npx wrangler deploy
+# Secret:  npx wrangler secret put INGEST_TOKEN
+name = "scoutpost-ingest"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# TCGCSV publishes around 20:00 UTC. Run at 21:15 UTC to leave headroom, and
+# again at 02:15 UTC so a transient failure gets a second chance the same night.
+[triggers]
+crons = ["15 21 * * *", "15 2 * * *"]
+
+# Same database the Pages project binds to.
+# Fill database_id after: npx wrangler d1 create scoutpost
+[[d1_databases]]
+binding = "DB"
+database_name = "scoutpost"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+[observability]
+enabled = true
