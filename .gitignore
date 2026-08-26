@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# secrets / local env
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# local database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.wrangler/
+
+# build output
+build/
+dist/
+.output/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
