@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS events (
   city      TEXT,
   state     TEXT,                          -- two-letter where applicable
   country   TEXT,                          -- ISO-3166 alpha-2, e.g. 'US'
+  player_count INTEGER,                    -- attendance; how much a top 8 is worth
   source_url TEXT,                         -- where the lists were published
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

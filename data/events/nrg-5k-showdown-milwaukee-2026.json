@@ -1,0 +1,53 @@
+{
+  "id": "nrg-5k-showdown-milwaukee-2026",
+  "name": "NRG Series: Riftbound $5K Constructed Showdown",
+  "date": "2026-08-23",
+  "format": "constructed",
+  "store": "NRG Events",
+  "city": "Milwaukee",
+  "state": "WI",
+  "country": "US",
+  "player_count": 109,
+
+  "decks": [
+    {
+      "placement": 1,
+      "player": "goofbidoof",
+      "legend": "Heart of the Tempest",
+      "notes": "9-1-0 record.",
+      "cards": [
+        { "code": "VEN-155", "qty": 1, "_note": "Legend — Heart of the Tempest" },
+
+        { "code": "OGN-199", "qty": 1, "_note": "Tideturner" },
+        { "code": "OGN-185", "qty": 3, "_note": "Traveling Merchant" },
+        { "code": "SFD-130", "qty": 3, "_note": "Treasure Hunter" },
+        { "code": "SFD-149", "qty": 2, "_note": "Ezreal, Prodigy" },
+        { "code": "SFD-140", "qty": 3, "_note": "Fizz, Trickster" },
+        { "code": "OGN-194", "qty": 3, "_note": "Nocturne, Horrifying" },
+        { "code": "OGN-195", "qty": 3, "_note": "Rhasa the Sunderer" },
+
+        { "code": "OGN-204", "qty": 3, "_note": "Seal of Discord" },
+        { "code": "SFD-150", "qty": 2, "_note": "Last Rites" },
+
+        { "code": "OGN-169", "qty": 2, "_note": "Gust" },
+        { "code": "VEN-156", "qty": 3, "_note": "Lightning Rush" },
+        { "code": "OGN-183", "qty": 3, "_note": "Stacked Deck" },
+        { "code": "OGS-011", "qty": 1, "_note": "Flash" },
+        { "code": "SFD-136", "qty": 1, "_note": "Hard Bargain" },
+        { "code": "OGN-173", "qty": 3, "_note": "Ride the Wind" },
+        { "code": "SFD-145", "qty": 1, "_note": "Switcheroo" },
+        { "code": "UNL-128", "qty": 2, "_note": "Star-Crossed" },
+
+        { "code": "OGN-166", "qty": 9, "_note": "Chaos Rune" },
+        { "code": "OGN-214", "qty": 3, "_note": "Order Rune" }
+      ],
+      "sideboard": [
+        { "code": "VEN-131", "qty": 3, "_note": "Decree of Unity" },
+        { "code": "OGN-172", "qty": 1, "_note": "Rebuke" },
+        { "code": "OGN-224", "qty": 3, "_note": "Salvage" },
+        { "code": "UNL-128", "qty": 1, "_note": "Star-Crossed" },
+        { "code": "UNL-150", "qty": 2, "_note": "Vex, Apathetic" }
+      ]
+    }
+  ]
+}

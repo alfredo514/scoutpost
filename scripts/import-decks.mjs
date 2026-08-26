@@ -181,13 +181,16 @@ async function main() {
 
     sql.push(`-- ── ${data.name} (${file}) ──`);
     sql.push(
-      `INSERT INTO events (id, name, date, format, store, city, state, country, source_url, updated_at)
+      `INSERT INTO events (id, name, date, format, store, city, state, country, player_count, source_url, updated_at)
 VALUES (${s(data.id)}, ${s(data.name)}, ${s(data.date)}, ${s(data.format)}, ${s(data.store)}, ${s(
         data.city,
-      )}, ${s(data.state)}, ${s(data.country)}, ${s(data.source_url)}, datetime('now'))
+      )}, ${s(data.state)}, ${s(data.country)}, ${n(data.player_count)}, ${s(
+        data.source_url,
+      )}, datetime('now'))
 ON CONFLICT(id) DO UPDATE SET
   name=excluded.name, date=excluded.date, format=excluded.format, store=excluded.store,
   city=excluded.city, state=excluded.state, country=excluded.country,
+  player_count=excluded.player_count,
   source_url=excluded.source_url, updated_at=datetime('now');`,
     );
 

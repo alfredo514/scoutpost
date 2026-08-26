@@ -101,6 +101,7 @@ export async function onRequestGet({ env, params }) {
     ${esc(formatDate(event.date))}
     ${placeLabel(event) ? ` · ${esc(placeLabel(event))}` : ''}
     ${event.store ? ` · ${esc(event.store)}` : ''}
+    ${event.player_count ? ` · ${esc(Number(event.player_count).toLocaleString('en-US'))} players` : ''}
     ${event.format ? ` · <span class="tag">${esc(event.format)}</span>` : ''}
   </p>
   ${spreadStory}
