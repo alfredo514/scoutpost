@@ -257,6 +257,18 @@ section + section { margin-top: 2.6rem; }
 }
 .empty-cell { text-align: center; color: var(--text-dim); padding: 2rem !important; }
 
+/* Decklist section headers (Maindeck / Sideboard) */
+.data-table .section-row td {
+  background: var(--surface-2); color: var(--text);
+  font-family: var(--mono); font-size: .72rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: .55rem .9rem; border-bottom: 1px solid var(--line);
+}
+.section-meta {
+  color: var(--text-dim); font-weight: 400; letter-spacing: .06em;
+  text-transform: none; margin-left: .5rem;
+}
+
 .strong-link { color: var(--text); text-decoration: none; font-weight: 650; }
 .strong-link:hover { color: var(--gold); text-decoration: underline; }
 .cost { color: var(--gold); font-weight: 700; }
@@ -344,6 +356,10 @@ section + section { margin-top: 2.6rem; }
     letter-spacing: .07em; font-weight: 700; text-align: left; flex: none;
   }
   .data-table td.bar-cell { width: 100%; }
+  /* section headers stay full-width bars, not label/value rows */
+  .data-table tr.section-row { background: transparent; border: none; margin: 1rem 0 .4rem; padding: 0; }
+  .data-table .section-row td { display: block; text-align: left; border-radius: var(--radius-sm); }
+  .data-table .section-row td::before { content: none; }
   .card-name, .card-code, .legend { text-align: right; }
   .data-table tfoot { display: block; }
   .data-table tfoot tr { background: var(--surface-2); }

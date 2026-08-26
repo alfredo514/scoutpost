@@ -65,6 +65,12 @@ export async function getEventDecks(db, eventId) {
       `WITH ${LATEST_PRICES}
        SELECT d.id, d.placement, d.player_name, d.legend, d.notes,
               ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
+              ROUND(SUM(CASE WHEN dc.section = 'main'
+                             THEN COALESCE(p.market_price, 0) * dc.quantity ELSE 0 END), 2) AS main_cost,
+              ROUND(SUM(CASE WHEN dc.section = 'sideboard'
+                             THEN COALESCE(p.market_price, 0) * dc.quantity ELSE 0 END), 2) AS side_cost,
+              SUM(CASE WHEN dc.section = 'main' THEN dc.quantity ELSE 0 END) AS main_count,
+              SUM(CASE WHEN dc.section = 'sideboard' THEN dc.quantity ELSE 0 END) AS side_count,
               SUM(dc.quantity)                                          AS card_count,
               COUNT(dc.card_id)                                         AS distinct_cards,
               SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced_cards
@@ -100,14 +106,14 @@ export async function getDeckCards(db, deckId) {
       `WITH ${LATEST_PRICES}
        SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
               c.rarity, c.card_type, c.image_thumb_url, c.tcgcsv_product_id,
-              dc.quantity,
+              dc.quantity, dc.section,
               p.market_price, p.low_price, p.date AS price_date,
               ROUND(COALESCE(p.market_price, 0) * dc.quantity, 2) AS line_total
          FROM deck_cards dc
          JOIN cards c ON c.id = dc.card_id
          LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
         WHERE dc.deck_id = ?
-        ORDER BY line_total DESC, c.name ASC`,
+        ORDER BY dc.section ASC, line_total DESC, c.name ASC`,
     )
     .bind(deckId)
     .all();

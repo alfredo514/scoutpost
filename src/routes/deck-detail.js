@@ -24,21 +24,32 @@ export async function onRequestGet({ env, params }) {
   const unpriced = cards.filter((c) => c.market_price === null || c.market_price === undefined);
   const priceDate = cards.find((c) => c.price_date)?.price_date ?? null;
 
+  const main = cards.filter((c) => c.section !== 'sideboard');
+  const side = cards.filter((c) => c.section === 'sideboard');
+  const sum = (list) => list.reduce((t, c) => t + (Number(c.line_total) || 0), 0);
+  const qty = (list) => list.reduce((t, c) => t + (Number(c.quantity) || 0), 0);
+
+  const cardRow = (c) => `<tr>
+      <td data-label="Qty" class="num qty">${esc(c.quantity)}×</td>
+      <td data-label="Card">
+        <span class="card-name">${esc(c.name)}</span>
+        <span class="card-code">${esc(c.public_code || `${c.set_id}-${c.collector_number}`)}</span>
+      </td>
+      <td data-label="Rarity">${esc(c.rarity || '—')}</td>
+      <td data-label="Unit price" class="num">${money(c.market_price)}</td>
+      <td data-label="Line total" class="num"><b>${money(c.line_total)}</b></td>
+    </tr>`;
+
+  const sectionRow = (label, list) =>
+    `<tr class="section-row"><td colspan="5">${esc(label)} <span class="section-meta">${esc(
+      qty(list),
+    )} cards · ${money(sum(list))}</span></td></tr>`;
+
   const rows = cards.length
-    ? cards
-        .map(
-          (c) => `<tr>
-            <td data-label="Qty" class="num qty">${esc(c.quantity)}×</td>
-            <td data-label="Card">
-              <span class="card-name">${esc(c.name)}</span>
-              <span class="card-code">${esc(c.public_code || `${c.set_id}-${c.collector_number}`)}</span>
-            </td>
-            <td data-label="Rarity">${esc(c.rarity || '—')}</td>
-            <td data-label="Unit price" class="num">${money(c.market_price)}</td>
-            <td data-label="Line total" class="num"><b>${money(c.line_total)}</b></td>
-          </tr>`,
-        )
-        .join('')
+    ? [
+        main.length ? sectionRow('Maindeck', main) + main.map(cardRow).join('') : '',
+        side.length ? sectionRow('Sideboard', side) + side.map(cardRow).join('') : '',
+      ].join('')
     : `<tr><td colspan="5" class="empty-cell">No cards recorded for this deck.</td></tr>`;
 
   const body = `
@@ -60,8 +71,13 @@ export async function onRequestGet({ env, params }) {
 
 <div class="summary-cards">
   <div class="summary big"><span class="label">Build cost</span><b>${money(total)}</b></div>
+  <div class="summary"><span class="label">Maindeck</span><b>${money(sum(main))}</b></div>
+  ${
+    side.length
+      ? `<div class="summary"><span class="label">Sideboard</span><b>${money(sum(side))}</b></div>`
+      : ''
+  }
   <div class="summary"><span class="label">Cards</span><b>${esc(cardCount)}</b></div>
-  <div class="summary"><span class="label">Distinct</span><b>${esc(cards.length)}</b></div>
   <div class="summary"><span class="label">Priced</span><b>${esc(
     cards.length - unpriced.length,
   )}/${esc(cards.length)}</b></div>

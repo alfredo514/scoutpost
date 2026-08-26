@@ -216,26 +216,41 @@ VALUES (${s(deckId)}, ${s(data.id)}, ${placement}, ${s(deck.player)}, ${s(deck.l
       );
       deckTotal++;
 
-      const cards = Array.isArray(deck.cards) ? deck.cards : [];
-      if (cards.length === 0) problem(file, `deck ${placement} has no cards`);
+      // A deck is { cards: [...] } for the maindeck plus an optional
+      // { sideboard: [...] }. An entry may also carry its own "section".
+      const main = Array.isArray(deck.cards) ? deck.cards : [];
+      const side = Array.isArray(deck.sideboard) ? deck.sideboard : [];
+      if (main.length === 0) problem(file, `deck ${placement} has no maindeck cards`);
 
-      const merged = new Map(); // card_id → qty (a list may repeat a card)
-      for (const entry of cards) {
-        const cardId = resolveCard(entry, catalogue, file);
-        if (!cardId) continue;
-        const qty = Number(entry.qty ?? entry.quantity ?? 1);
-        if (!Number.isInteger(qty) || qty < 1) {
-          problem(file, `quantity "${entry.qty}" for ${entry.code ?? entry.name} must be a positive integer`);
-          continue;
+      // Keyed by section so a card can sit in both main and sideboard without
+      // the two entries collapsing into one.
+      const merged = new Map(); // `${section}|${card_id}` → qty
+      const collect = (entries, defaultSection) => {
+        for (const entry of entries) {
+          const cardId = resolveCard(entry, catalogue, file);
+          if (!cardId) continue;
+          const qty = Number(entry.qty ?? entry.quantity ?? 1);
+          if (!Number.isInteger(qty) || qty < 1) {
+            problem(
+              file,
+              `quantity "${entry.qty}" for ${entry.code ?? entry.name} must be a positive integer`,
+            );
+            continue;
+          }
+          const section = entry.section === 'sideboard' ? 'sideboard' : defaultSection;
+          const key = `${section}|${cardId}`;
+          merged.set(key, (merged.get(key) ?? 0) + qty);
         }
-        merged.set(cardId, (merged.get(cardId) ?? 0) + qty);
-      }
+      };
+      collect(main, 'main');
+      collect(side, 'sideboard');
 
-      for (const [cardId, qty] of merged) {
+      for (const [key, qty] of merged) {
+        const [section, cardId] = key.split('|');
         sql.push(
-          `INSERT INTO deck_cards (deck_id, card_id, quantity) VALUES (${s(deckId)}, ${s(
+          `INSERT INTO deck_cards (deck_id, card_id, quantity, section) VALUES (${s(deckId)}, ${s(
             cardId,
-          )}, ${qty}) ON CONFLICT(deck_id, card_id) DO UPDATE SET quantity=excluded.quantity;`,
+          )}, ${qty}, ${s(section)}) ON CONFLICT(deck_id, card_id, section) DO UPDATE SET quantity=excluded.quantity;`,
         );
         cardTotal++;
       }

@@ -89,12 +89,18 @@ CREATE TABLE IF NOT EXISTS decks (
 
 CREATE INDEX IF NOT EXISTS idx_decks_event ON decks(event_id, placement);
 
+-- section is part of the key on purpose: a card can legitimately appear in both
+-- the maindeck and the sideboard (e.g. 2x main + 1x side). Keying on
+-- (deck_id, card_id) alone silently merges those two rows and loses a card.
 CREATE TABLE IF NOT EXISTS deck_cards (
   deck_id   TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   card_id   TEXT NOT NULL REFERENCES cards(id),
   quantity  INTEGER NOT NULL CHECK (quantity > 0),
-  PRIMARY KEY (deck_id, card_id)
+  section   TEXT NOT NULL DEFAULT 'main' CHECK (section IN ('main', 'sideboard')),
+  PRIMARY KEY (deck_id, card_id, section)
 );
+
+CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id, section);
 
 -- Historical record only. The displayed cost is always recomputed live.
 CREATE TABLE IF NOT EXISTS deck_cost_snapshots (
