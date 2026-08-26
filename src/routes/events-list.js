@@ -7,8 +7,8 @@ import {
   money,
   placeLabel,
   url,
-} from '../_lib/render.js';
-import { listEvents } from '../_lib/queries.js';
+} from '../lib/render.js';
+import { listEvents } from '../lib/queries.js';
 
 export async function onRequestGet({ env }) {
   const events = await listEvents(env.DB, { limit: 200 });

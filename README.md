@@ -15,33 +15,37 @@ terms. Four separate things, each doing one job:
 
 | Piece | What it is | What it does here |
 |---|---|---|
-| **Pages** | Static hosting + serverless functions, deployed from GitHub | Serves the site. Every push to `main` auto-deploys. |
-| **Pages Functions** | Small JS files in `functions/` that run per request | Render `/events`, `/decks` etc. from the database |
+| **Worker** | A serverless script that answers HTTP requests | Renders every page from the database |
+| **Static assets** | Files in `public/`, served straight from the edge | `styles.css`, `favicon.svg` |
 | **D1** | Cloudflare's SQLite database | Cards, prices, events, decks |
-| **Workers** | Standalone serverless scripts | Two of them — see below |
+| **Cron triggers** | Scheduled Worker invocations | The daily data pull |
 
-There are **two Workers**, and they exist for different reasons:
+There are **three Workers** in this repo, deployed separately because they do
+different jobs:
 
-- **`ingest/`** — the daily data job. It's separate from Pages because
-  **Pages cannot run scheduled/cron jobs**; only a standalone Worker can.
-- **`route-worker/`** — serves the Pages app at `softsauce.co/scoutpost`.
-  `softsauce.co` is served from an existing origin, so this Worker claims just
-  the `/scoutpost*` path and forwards it to Pages. Nothing on the existing site
-  changes.
+| Directory | Worker | Job |
+|---|---|---|
+| *(repo root)* | `scoutpost` | The site. Auto-deploys on every push to `main`. |
+| `ingest/` | `scoutpost-ingest` | Daily cron data pull. Separate because the site Worker has no schedule. |
+| `route-worker/` | `scoutpost-route` | Serves the site at `softsauce.co/scoutpost`. |
+
+`softsauce.co` is served from an existing origin (nginx on a NAS), so
+`route-worker` claims just the `/scoutpost*` path and forwards it to the site
+Worker, stripping the prefix. Nothing on the existing site changes.
 
 ```
                     ┌───────────────────────────┐
 softsauce.co/…      │  existing origin (nginx)  │
                     └───────────────────────────┘
-                    ┌───────────────────────────┐
-softsauce.co/scoutpost ──► route-worker ──► Pages + Functions
-                    └──────────────┬────────────┘
-                                   │ reads
-                              ┌────▼────┐      writes     ┌──────────────┐
-                              │   D1    │◄────────────────┤ ingest Worker│
-                              └─────────┘   daily cron    └──────┬───────┘
-                                                                 │ fetches
-                                                    Riftscribe ──┘── TCGCSV
+
+softsauce.co/scoutpost ──► route-worker ──► scoutpost Worker + public/ assets
+                                                     │ reads
+                                                ┌────▼────┐     writes    ┌───────────────┐
+                                                │   D1    │◄──────────────┤ scoutpost-    │
+                                                └─────────┘  daily cron   │ ingest Worker │
+                                                                          └───────┬───────┘
+                                                                                  │ fetches
+                                                                     Riftscribe ──┘── TCGCSV
 ```
 
 ---
@@ -49,12 +53,14 @@ softsauce.co/scoutpost ──► route-worker ──► Pages + Functions
 ## Layout
 
 ```
+wrangler.toml            site Worker config (assets, D1, BASE_PATH)
 db/schema.sql            D1 schema
+src/index.js             router — maps paths to route modules
+src/lib/render.js        layout, base-path links, disclaimer, ad slots
+src/lib/queries.js       all SQL, including live deck-cost calculation
+src/routes/*.js          one module per page
 ingest/                  daily cron Worker (catalogue + prices)
-route-worker/            serves Pages at /scoutpost on the existing domain
-functions/               Pages Functions — the actual pages
-  _lib/render.js         layout, base-path links, disclaimer, ad slots
-  _lib/queries.js        all SQL, including live deck-cost calculation
+route-worker/            serves the site at /scoutpost on the existing domain
 public/                  static assets (styles.css, favicon)
 data/events/*.json       decklists — the only file you touch to add an event
 scripts/import-decks.mjs turns those JSON files into SQL
@@ -77,9 +83,13 @@ npx wrangler login
 npx wrangler d1 create scoutpost
 ```
 
-Copy the printed `database_id` into **both**:
-- `ingest/wrangler.toml`
-- the Pages project's D1 binding (step 3)
+Copy the printed `database_id` into **both** config files:
+- `wrangler.toml` (the site)
+- `ingest/wrangler.toml` (the data job)
+
+The `database_id` is an identifier, not a secret — it grants nothing without an
+authenticated token for the account, and committing it is Cloudflare's normal
+workflow.
 
 Then create the tables:
 
@@ -107,23 +117,27 @@ Check what happened at any time:
 curl https://scoutpost-ingest.<your-subdomain>.workers.dev/health
 ```
 
-### 3. Create the Pages project
+### 3. Deploy the site Worker
 
-In the Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**,
-pick this repo, then set:
+Either deploy straight from your machine:
 
-- **Build command**: *(leave empty)*
-- **Build output directory**: `public`
-- **D1 binding**: variable name `DB` → database `scoutpost`
-- **Environment variables**:
-  - `BASE_PATH` = `/scoutpost`
-  - `SITE_ORIGIN` = `https://softsauce.co`
+```bash
+npx wrangler deploy
+```
 
-Every push to `main` now deploys automatically.
+…or connect the repo in the Cloudflare dashboard
+(**Workers & Pages → Create → Continue with GitHub**) so it auto-deploys on
+every push to `main`. Leave **Build command** empty; the **Deploy command** is
+`npx wrangler deploy`.
+
+Everything the Worker needs — the D1 binding, `BASE_PATH`, `SITE_ORIGIN`, the
+`public/` asset directory — is already declared in `wrangler.toml`, so there are
+no dashboard bindings or environment variables to add by hand.
 
 ### 4. Put it on softsauce.co/scoutpost
 
-Set `PAGES_ORIGIN` in `route-worker/wrangler.toml` to your `*.pages.dev` URL, then:
+Set `PAGES_ORIGIN` in `route-worker/wrangler.toml` to the site Worker's URL
+(`https://scoutpost.<your-subdomain>.workers.dev`), then:
 
 ```bash
 npx wrangler deploy --config route-worker/wrangler.toml
@@ -210,7 +224,7 @@ Built under Riot's **"Legal Jibber Jabber"** policy. That means, permanently:
 - ❌ No paywall, no paid ad-free tier
 - ✅ Ads are permitted
 - ✅ The footer disclaimer is required **verbatim** — it lives in
-  `functions/_lib/render.js` as `DISCLAIMER`. Do not reword it.
+  `src/lib/render.js` as `DISCLAIMER`. Do not reword it.
 
 **Ads**: none at launch (ad networks have traffic minimums this won't clear for a
 long time). Fixed-height slot containers are already reserved in the layout
@@ -242,4 +256,4 @@ absolute URL is hardcoded anywhere.
 - [ ] Box EV calculator
 
 When `/cards` and `/box-ev` ship, add them to the `nav` array in
-`functions/_lib/render.js` — they're deliberately not linked while unbuilt.
+`src/lib/render.js` — they're deliberately not linked while unbuilt.

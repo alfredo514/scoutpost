@@ -13,10 +13,12 @@
     "db:schema:local": "wrangler d1 execute scoutpost --local --file=db/schema.sql",
     "import": "node scripts/import-decks.mjs",
     "import:apply": "wrangler d1 execute scoutpost --remote --file=build/import.sql",
-    "dev": "wrangler pages dev public --d1=DB=scoutpost --compatibility-date=2026-08-01",
+    "dev": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
     "deploy:ingest": "wrangler deploy --config ingest/wrangler.toml",
     "deploy:route": "wrangler deploy --config route-worker/wrangler.toml",
-    "ingest:manual": "wrangler tail scoutpost-ingest"
+    "tail": "wrangler tail scoutpost",
+    "tail:ingest": "wrangler tail scoutpost-ingest"
   },
   "devDependencies": {
     "wrangler": "^4.126.0"

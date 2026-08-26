@@ -9,8 +9,8 @@ import {
   notFound,
   placeLabel,
   url,
-} from '../_lib/render.js';
-import { getEvent, getEventDecks, latestPriceDate } from '../_lib/queries.js';
+} from '../lib/render.js';
+import { getEvent, getEventDecks, latestPriceDate } from '../lib/queries.js';
 
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 

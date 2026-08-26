@@ -1,5 +1,5 @@
-import { adSlot, esc, formatDate, htmlResponse, layout, money, placeLabel, url } from './_lib/render.js';
-import { listEvents, siteStats } from './_lib/queries.js';
+import { adSlot, esc, formatDate, htmlResponse, layout, money, placeLabel, url } from '../lib/render.js';
+import { listEvents, siteStats } from '../lib/queries.js';
 
 export async function onRequestGet({ env }) {
   const [events, stats] = await Promise.all([listEvents(env.DB, { limit: 6 }), siteStats(env.DB)]);

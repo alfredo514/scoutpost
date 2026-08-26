@@ -1,5 +1,5 @@
-import { absoluteUrl } from './_lib/render.js';
-import { allDeckIds, allEventSlugs } from './_lib/queries.js';
+import { absoluteUrl } from '../lib/render.js';
+import { allDeckIds, allEventSlugs } from '../lib/queries.js';
 
 /**
  * Sitemap for the Scoutpost section.

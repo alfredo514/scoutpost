@@ -1,5 +1,5 @@
-import { adSlot, esc, formatDate, htmlResponse, layout, money, url } from '../_lib/render.js';
-import { latestPriceDate, listDecks } from '../_lib/queries.js';
+import { adSlot, esc, formatDate, htmlResponse, layout, money, url } from '../lib/render.js';
+import { latestPriceDate, listDecks } from '../lib/queries.js';
 
 export async function onRequestGet({ env }) {
   const [decks, priceDate] = await Promise.all([
