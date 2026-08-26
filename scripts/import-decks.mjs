@@ -25,8 +25,14 @@ const RIFTSCRIBE = 'https://riftscribe.gg/api/cards';
 const PAGE_SIZE = 200; // 500 silently returns an empty array — do not raise
 
 const problems = [];
+const notes = [];
 function problem(file, msg) {
   problems.push(`${file}: ${msg}`);
+}
+
+/** Compare names ignoring punctuation, case and spacing. */
+function normaliseName(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 /** SQL string literal. */
@@ -42,8 +48,9 @@ function n(value) {
 
 /** Pull the whole card catalogue and index it by printed code. */
 async function loadCatalogue() {
-  const byCode = new Map(); // 'OGN|1|'   → id
-  const byName = new Map(); // 'blazing scorcher' → [ids]
+  const byCode = new Map(); // 'OGN|1|' → id
+  const byName = new Map(); // normalised name → [card objects]
+  const bySuffixTrimmed = new Map(); // name with a ' - Suffix' removed → [cards]
   let offset = 0;
 
   for (;;) {
@@ -64,10 +71,17 @@ async function loadCatalogue() {
       const variant = (c.variant ?? '').toLowerCase();
       byCode.set(`${set}|${Number(c.collector_number)}|${variant}`, c.id);
 
-      const key = String(c.name ?? '').trim().toLowerCase();
+      const key = normaliseName(c.name ?? '');
       if (key) {
         if (!byName.has(key)) byName.set(key, []);
-        byName.get(key).push(c.id);
+        byName.get(key).push(c);
+
+        // 'Wuju Bladesman - Starter' should also be findable as 'Wuju Bladesman'
+        const trimmed = normaliseName(String(c.name).replace(/\s+-\s+.*$/, ''));
+        if (trimmed && trimmed !== key) {
+          if (!bySuffixTrimmed.has(trimmed)) bySuffixTrimmed.set(trimmed, []);
+          bySuffixTrimmed.get(trimmed).push(c);
+        }
       }
     }
 
@@ -76,7 +90,7 @@ async function loadCatalogue() {
   }
 
   console.log(`  catalogue: ${byCode.size} printings indexed`);
-  return { byCode, byName };
+  return { byCode, byName, bySuffixTrimmed };
 }
 
 /**
@@ -102,19 +116,55 @@ function resolveCard(entry, catalogue, file) {
   }
 
   if (entry.name) {
-    const hits = catalogue.byName.get(String(entry.name).trim().toLowerCase()) ?? [];
+    // Try the name as written, then with the champion prefix dropped — legends
+    // are catalogued without it ("Kennen, Heart of the Tempest" is stored as
+    // "Heart of the Tempest"). Each form is looked up both directly and against
+    // suffix-trimmed names, since starter reprints carry one
+    // ("Wuju Bladesman - Starter").
+    const forms = [normaliseName(entry.name)];
+    if (entry.name.includes(',')) {
+      forms.push(normaliseName(entry.name.split(',').slice(1).join(' ')));
+    }
+
+    let hits = [];
+    for (const form of forms) {
+      hits = catalogue.byName.get(form) ?? catalogue.bySuffixTrimmed.get(form) ?? [];
+      if (hits.length) break;
+    }
+
     if (hits.length === 0) {
       problem(file, `card name "${entry.name}" matched no card`);
       return null;
     }
-    if (hits.length > 1) {
-      problem(
-        file,
-        `card name "${entry.name}" is ambiguous (${hits.length} printings) — use a code instead`,
+    if (hits.length === 1) return hits[0].id;
+
+    // Several printings. Prefer the ordinary tournament printing:
+    //   * no letter variant (007a) and not a showcase/signature rarity
+    //   * collector number within the set size — a number ABOVE the printed
+    //     set total is a secret-rare/alt art. These are not marginally pricier,
+    //     they are 100-1000x pricier (Baron Nashor: $18.92 base vs $1,634.89
+    //     for UNL-238/219), so picking one would wreck a deck's cost.
+    const base = hits.filter((c) => {
+      if (c.variant) return false;
+      if (/showcase|signature/i.test(c.rarity ?? '')) return false;
+      const m = /\/(\d+)$/.exec(c.public_code ?? '');
+      if (m && Number(c.collector_number) > Number(m[1])) return false;
+      return !String(c.public_code ?? '').includes('*');
+    });
+
+    if (base.length === 1) {
+      notes.push(
+        `${file}: "${entry.name}" had ${hits.length} printings; used base ${base[0].public_code}`,
       );
-      return null;
+      return base[0].id;
     }
-    return hits[0];
+
+    problem(
+      file,
+      `card name "${entry.name}" is ambiguous (${hits.length} printings, ${base.length} base: ` +
+        `${hits.map((h) => h.public_code).join(', ')}) — use a code instead`,
+    );
+    return null;
   }
 
   problem(file, 'a deck entry had neither "code" nor "name"');
@@ -270,6 +320,11 @@ VALUES (${s(deckId)}, ${s(data.id)}, ${placement}, ${s(deck.player)}, ${s(deck.l
 
   await mkdir(dirname(OUT_FILE), { recursive: true });
   await writeFile(OUT_FILE, sql.join('\n'), 'utf8');
+
+  if (notes.length) {
+    console.log(`\n${notes.length} name(s) had several printings; base printing used:`);
+    for (const n of notes) console.log(`   · ${n}`);
+  }
 
   console.log(`\n✓ ${deckTotal} deck(s), ${cardTotal} card line(s) → build/import.sql`);
   console.log('\nApply with:');
