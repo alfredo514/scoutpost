@@ -23,7 +23,7 @@ cost** — nobody else in the Riftbound tool space publishes that.
 
 | Config | Worker | Job |
 |---|---|---|
-| `wrangler.toml` | `scoutpost` | the site. **Deploy manually: `npx wrangler deploy`.** |
+| `wrangler.toml` | `scoutpost` | the site. Auto-deploys on push to `main` — see §10 |
 | `ingest/wrangler.toml` | `scoutpost-ingest` | daily cron data pull (21:15 + 02:15 UTC) |
 | `route-worker/wrangler.toml` | `scoutpost-route` | serves the site at `softsauce.co/scoutpost*` |
 
