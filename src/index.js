@@ -19,6 +19,8 @@ import { onRequestGet as eventDetail } from './routes/event-detail.js';
 import { onRequestGet as decksList } from './routes/decks-list.js';
 import { onRequestGet as deckDetail } from './routes/deck-detail.js';
 import { onRequestGet as sitemap } from './routes/sitemap.js';
+import { plannedHandler } from './routes/planned.js';
+import { plannedSections } from './lib/sections.js';
 
 /** [pattern, handler, ...capture group names] */
 const ROUTES = [
@@ -28,6 +30,14 @@ const ROUTES = [
   [/^\/decks$/, decksList],
   [/^\/decks\/([A-Za-z0-9._-]+)$/, deckDetail, 'id'],
   [/^\/sitemap\.xml$/, sitemap],
+
+  // Planned sections get a real route so the nav can show the site's final
+  // shape without a dead link. To ship one: set its status to 'live' in
+  // sections.js and replace its entry here with the real handler.
+  ...plannedSections().map((s) => [
+    new RegExp(`^${s.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+    plannedHandler(s.path),
+  ]),
 ];
 
 export default {

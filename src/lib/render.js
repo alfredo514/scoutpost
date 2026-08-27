@@ -1,3 +1,5 @@
+import { SECTIONS } from './sections.js';
+
 /**
  * Shared rendering for Scoutpost pages.
  *
@@ -116,22 +118,30 @@ export function layout(env, opts) {
     crumbs = [],
     body = '',
     jsonLd = '',
+    robots = '',
   } = opts;
 
-  // Only ship links to sections that actually exist — an unbuilt page in the
-  // nav is a dead end for readers and a thin page for crawlers.
-  // Add ['/cards','Cards'] and ['/box-ev','Box EV'] here when those land.
-  const nav = [
-    ['/events', 'Events'],
-    ['/decks', 'Decks'],
-  ];
+  // The nav's shape is fixed by SECTIONS, planned pages included. Planned ones
+  // route to a real placeholder rather than 404, and are marked so a reader can
+  // tell before clicking that there is nothing to read yet.
+  const navHtml = SECTIONS.map((s) => {
+    const current = path === s.path || path.startsWith(`${s.path}/`);
+    const cls = [current ? 'active' : '', s.status === 'planned' ? 'is-planned' : '']
+      .filter(Boolean)
+      .join(' ');
+    return `<a href="${esc(url(env, s.path))}"${cls ? ` class="${cls}"` : ''}${
+      current ? ' aria-current="page"' : ''
+    }>${esc(s.label)}${
+      s.status === 'planned' ? '<span class="soon" aria-label="coming soon">soon</span>' : ''
+    }</a>`;
+  }).join('');
 
-  const navHtml = nav
+  const footerNavHtml = [{ path: '/', label: 'Home' }, ...SECTIONS]
     .map(
-      ([p, label]) =>
-        `<a href="${esc(url(env, p))}"${
-          path === p || path.startsWith(`${p}/`) ? ' class="active" aria-current="page"' : ''
-        }>${esc(label)}</a>`,
+      (s) =>
+        `<a href="${esc(url(env, s.path))}">${esc(s.label)}${
+          s.status === 'planned' ? '<span class="soon">soon</span>' : ''
+        }</a>`,
     )
     .join('');
 
@@ -142,13 +152,14 @@ export function layout(env, opts) {
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}"/>
-<link rel="canonical" href="${esc(absoluteUrl(env, path))}"/>
+${robots ? `<meta name="robots" content="${esc(robots)}"/>\n` : ''}<link rel="canonical" href="${esc(absoluteUrl(env, path))}"/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="Scoutpost"/>
 <meta property="og:title" content="${esc(title)}"/>
 <meta property="og:description" content="${esc(description)}"/>
 <meta property="og:url" content="${esc(absoluteUrl(env, path))}"/>
 <meta name="twitter:card" content="summary"/>
+<meta name="theme-color" content="#08150e"/>
 <link rel="icon" href="${esc(url(env, '/favicon.svg'))}" type="image/svg+xml"/>
 <link rel="stylesheet" href="${esc(url(env, '/styles.css'))}"/>
 ${breadcrumbJsonLd(env, crumbs)}
@@ -171,11 +182,7 @@ ${body}
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <nav class="footer-nav" aria-label="Footer">
-      <a href="${esc(url(env, '/'))}">Home</a>
-      <a href="${esc(url(env, '/events'))}">Events</a>
-      <a href="${esc(url(env, '/decks'))}">Decks</a>
-    </nav>
+    <nav class="footer-nav" aria-label="Footer">${footerNavHtml}</nav>
     <p class="sources">
       Card data from Riftscribe. Price data from TCGCSV, sourced from TCGplayer
       market prices and updated daily.

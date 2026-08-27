@@ -260,8 +260,20 @@ Not yet built (roadmap order from the original brief):
       movers
 - [ ] **Box EV calculator**
 
-When `/cards` and `/box-ev` ship, add them to the `nav` array in
-`src/lib/render.js` — they're deliberately unlinked while unbuilt.
+All three are **already in the nav**, routed, and styled. `src/lib/sections.js`
+is the single registry every consumer reads — header nav, footer, router,
+sitemap. A planned section routes to `src/routes/planned.js`, which renders a
+real page saying what's coming and linking to what works; it carries
+`noindex, follow` and is excluded from the sitemap.
+
+**To ship one, two lines:**
+
+1. `status: 'planned'` → `'live'` in `sections.js`
+2. replace its generated entry in the `ROUTES` array in `src/index.js` with the
+   real handler
+
+Nav, footer, styling, sitemap and the noindex all follow automatically. Do not
+add links by hand anywhere — nothing reads a hardcoded nav list any more.
 
 Smaller open items:
 

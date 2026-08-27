@@ -1,5 +1,6 @@
 import { absoluteUrl } from '../lib/render.js';
 import { allDeckIds, allEventSlugs } from '../lib/queries.js';
+import { liveSections } from '../lib/sections.js';
 
 /**
  * Sitemap for the Scoutpost section.
@@ -11,10 +12,15 @@ import { allDeckIds, allEventSlugs } from '../lib/queries.js';
 export async function onRequestGet({ env }) {
   const [events, decks] = await Promise.all([allEventSlugs(env.DB), allDeckIds(env.DB)]);
 
+  // Only live sections. Planned pages are noindex, so listing them here would
+  // be asking a crawler to fetch a page we've told it to ignore.
   const urls = [
     { loc: absoluteUrl(env, '/'), priority: '1.0', changefreq: 'daily' },
-    { loc: absoluteUrl(env, '/events'), priority: '0.9', changefreq: 'daily' },
-    { loc: absoluteUrl(env, '/decks'), priority: '0.8', changefreq: 'daily' },
+    ...liveSections().map((s) => ({
+      loc: absoluteUrl(env, s.path),
+      priority: '0.9',
+      changefreq: 'daily',
+    })),
     ...events.map((e) => ({
       loc: absoluteUrl(env, `/events/${e.id}`),
       lastmod: e.date,
