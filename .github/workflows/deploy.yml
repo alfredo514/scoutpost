@@ -1,0 +1,89 @@
+name: Deploy
+
+# The site Worker deploys on every push to main that touches code or assets.
+#
+# Event JSON is deliberately NOT in the path list: adding an event is a data
+# operation that lands in D1 via scripts/import-decks.mjs, and needs no deploy.
+# A docs-only commit doesn't redeploy either.
+#
+# The ingest and route Workers change rarely, so they are manual — run this
+# workflow from the Actions tab and tick the one you want.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'wrangler.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      ingest:
+        description: 'Also deploy the ingest Worker (cron data pull)'
+        type: boolean
+        default: false
+      route:
+        description: 'Also deploy the route Worker (serves /scoutpost*)'
+        type: boolean
+        default: false
+
+# A second push while one deploy is in flight cancels the older run, so the
+# last commit always wins rather than racing.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy the site
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2d46810c6a919c5c38787a4842f173bd
+
+      - name: Deploy the ingest Worker
+        if: ${{ inputs.ingest }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2d46810c6a919c5c38787a4842f173bd
+          command: deploy --config ingest/wrangler.toml
+
+      - name: Deploy the route Worker
+        if: ${{ inputs.route }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2d46810c6a919c5c38787a4842f173bd
+          command: deploy --config route-worker/wrangler.toml
+
+      # wrangler prints "No updated asset files to upload" even on runs where
+      # public/ did change, so its output is not evidence. Ask the live URL.
+      - name: Verify the deploy actually landed
+        run: |
+          sleep 10
+          for i in $(seq 1 12); do
+            live=$(curl -fsS https://softsauce.co/scoutpost/ || true)
+            if printf '%s' "$live" | grep -q 'Scoutpost'; then
+              echo "Live site responding."
+              exit 0
+            fi
+            echo "attempt $i — not responding yet"
+            sleep 10
+          done
+          echo "::error::Live site did not respond after deploy"
+          exit 1

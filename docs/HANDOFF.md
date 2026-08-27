@@ -288,12 +288,24 @@ Smaller open items:
 
 ---
 
-## 10. Deployment is manual — there is no CI
+## 10. Deployment
 
-An earlier version of this doc said the site auto-deploys on push to `main`. It
-does not. There is no `.github/workflows`, and pushing alone changes nothing on
-the live site — this was discovered the hard way after a push sat for four
-minutes with the old CSS still serving.
+**The site now auto-deploys on push to `main`** via
+`.github/workflows/deploy.yml` — but only for commits touching `src/`,
+`public/`, `wrangler.toml` or the lockfiles. Adding an event does **not**
+trigger a deploy, which is correct: event data lands in D1 through the importer
+and needs no code push.
+
+This was not always true. Until 2026-08-27 the doc *claimed* auto-deploy while
+no CI existed at all; `wrangler deployments list` showed every deployment as
+`Source: Unknown`, i.e. a hand-run `wrangler deploy`. If a future session finds
+the workflow missing or disabled, assume nothing ships until deployed by hand.
+
+The ingest and route Workers are **not** automatic — they change rarely. Deploy
+them from the Actions tab: run the *Deploy* workflow manually and tick the box
+for the one you want.
+
+Deploying by hand still works and is the fallback:
 
 ```bash
 npx wrangler deploy                                    # the site
@@ -309,3 +321,19 @@ evidence either way.
 ```bash
 curl -s https://softsauce.co/scoutpost/styles.css | grep -o '\-\-accent: *#[0-9a-f]*'
 ```
+
+**The workflow needs one secret**, set once at
+`https://github.com/alfredo514/scoutpost/settings/secrets/actions`:
+
+| Name | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | a Cloudflare API token, *Edit Cloudflare Workers* template |
+
+Create it at `https://dash.cloudflare.com/profile/api-tokens` → Create Token →
+**Edit Cloudflare Workers**. That template already carries the Workers Scripts
+and D1 permissions a deploy needs. The account id is committed in the workflow
+on purpose — it is not a credential, it is already in this file, and inlining it
+keeps setup to a single step.
+
+Until that secret exists the workflow will run and fail on every push. That is
+the intended failure mode: a red X is visible, a silent no-op is not.
