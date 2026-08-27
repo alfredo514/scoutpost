@@ -1,5 +1,6 @@
 #:schema node_modules/wrangler/config-schema.json
-# Scoutpost ingestion worker (standalone — Pages cannot run cron triggers).
+# Scoutpost ingestion worker. Standalone so a failing data pull cannot affect
+# request serving, and so either side deploys without the other. See src/index.js.
 #
 # Deploy:  cd ingest && npx wrangler deploy
 # Secret:  npx wrangler secret put INGEST_TOKEN

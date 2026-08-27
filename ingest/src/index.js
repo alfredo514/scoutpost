@@ -1,9 +1,15 @@
 /**
  * Scoutpost ingestion worker.
  *
- * This is a STANDALONE Worker, deliberately separate from the Pages project:
- * Cloudflare Pages does not support cron triggers, so anything scheduled has to
- * live in its own Worker. It binds to the same D1 database as the site.
+ * A STANDALONE Worker, deliberately separate from the site. It binds to the
+ * same D1 database but deploys on its own.
+ *
+ * The split is historical AND still wanted. Originally the site was a Pages
+ * project, which cannot run cron triggers at all. The site is now a Worker and
+ * could carry the schedule itself — but keeping them apart means a slow or
+ * failing data pull cannot touch request serving, and either side ships without
+ * redeploying the other. Do not merge them back on the grounds that Workers
+ * support cron; that was never the only reason.
  *
  * Triggers
  *   cron   — daily, after TCGCSV publishes (~20:00 UTC)

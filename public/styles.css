@@ -33,7 +33,6 @@
 
   /* Glow. Sized so it reads on a dark ground without smearing text. */
   --glow-accent: 0 0 12px rgba(var(--accent-rgb), .45);
-  --glow-neg:    0 0 12px rgba(var(--neg-rgb), .40);
 
   --radius:    10px;
   --radius-sm: 6px;

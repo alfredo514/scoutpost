@@ -25,7 +25,7 @@ different jobs:
 
 | Directory | Worker | Job |
 |---|---|---|
-| *(repo root)* | `scoutpost` | The site. Auto-deploys on every push to `main`. |
+| *(repo root)* | `scoutpost` | The site. Deployed by hand — there is no CI. |
 | `ingest/` | `scoutpost-ingest` | Daily cron data pull. Separate because the site Worker has no schedule. |
 | `route-worker/` | `scoutpost-route` | Serves the site at `softsauce.co/scoutpost`. |
 
@@ -57,8 +57,10 @@ wrangler.toml            site Worker config (assets, D1, BASE_PATH)
 db/schema.sql            D1 schema
 src/index.js             router — maps paths to route modules
 src/lib/render.js        layout, base-path links, disclaimer, ad slots
+src/lib/sections.js      the nav/router/sitemap registry — one entry per section
 src/lib/queries.js       all SQL, including live deck-cost calculation
 src/routes/*.js          one module per page
+src/routes/planned.js    the page shown for a section that is not built yet
 ingest/                  daily cron Worker (catalogue + prices)
 route-worker/            serves the site at /scoutpost on the existing domain
 public/                  static assets (styles.css, favicon)
@@ -119,16 +121,17 @@ curl https://scoutpost-ingest.<your-subdomain>.workers.dev/health
 
 ### 3. Deploy the site Worker
 
-Either deploy straight from your machine:
-
 ```bash
 npx wrangler deploy
 ```
 
-…or connect the repo in the Cloudflare dashboard
-(**Workers & Pages → Create → Continue with GitHub**) so it auto-deploys on
-every push to `main`. Leave **Build command** empty; the **Deploy command** is
-`npx wrangler deploy`.
+**Deploying is a separate step from pushing.** There is no CI in this repo and
+the Cloudflare Git integration is not connected, so a push to `main` changes
+nothing on the live site until you run the command above. An earlier version of
+this README claimed otherwise; it was wrong, and the mistake cost a debugging
+session. Verify against the live URL, not against wrangler's output — it
+reports "No updated asset files to upload" even on runs where `public/` did
+change.
 
 Everything the Worker needs — the D1 binding, `BASE_PATH`, `SITE_ORIGIN`, the
 `public/` asset directory — is already declared in `wrangler.toml`, so there are
@@ -187,6 +190,14 @@ it falls back to its own last known price rather than dropping out of the total
 and making a deck look cheaper than it is. Pages also report how many cards in a
 list are actually priced, so a partial total is visibly partial.
 
+That fallback only looks back **30 days** (`PRICE_WINDOW_DAYS` in
+`src/lib/queries.js`). The window is not cosmetic: without it the query scans
+every price row ever recorded on every page view, which is nothing at a few
+thousand rows and ~410k/year later, for identical output. Bounding it keeps the
+read cost flat however deep the history gets. A card unpriced for longer than
+the window reads as unpriced rather than quoting a stale figure — which is the
+more honest answer, since the page shows the priced-card count either way.
+
 `deck_cost_snapshots` records the daily total for future charting. It is history
 only; no page reads a cost from it.
 
@@ -237,9 +248,12 @@ wreck CLS.
 
 ## Moving to a dedicated domain
 
-1. Attach the domain to the Pages project
-2. Set `BASE_PATH` = `/` and `SITE_ORIGIN` = the new origin
-3. Delete the `route-worker` deployment
+1. Attach the domain to the `scoutpost` Worker (Cloudflare dashboard → the
+   Worker → Settings → Domains & Routes). This is a Worker with static assets,
+   not a Pages project — earlier notes said Pages, which is out of date.
+2. Set `BASE_PATH` = `/` and `SITE_ORIGIN` = the new origin in `wrangler.toml`
+3. Delete the `route-worker` deployment, which exists only to strip the
+   `/scoutpost` prefix
 
 Nothing else changes — every internal link is built from `BASE_PATH`, and no
 absolute URL is hardcoded anywhere.
@@ -255,5 +269,12 @@ absolute URL is hardcoded anywhere.
 - [ ] Ranking pages (most expensive overall / by set / signatures, biggest movers)
 - [ ] Box EV calculator
 
-When `/cards` and `/box-ev` ship, add them to the `nav` array in
-`src/lib/render.js` — they're deliberately not linked while unbuilt.
+The three unbuilt sections are **already in the nav and already routed**. Every
+section is declared once in `src/lib/sections.js`, which the header nav, the
+footer, the router and the sitemap all read. A `status: 'planned'` section
+renders a real page describing what's coming, carries `noindex`, and is kept out
+of the sitemap.
+
+Shipping one is two lines: flip its `status` to `'live'`, and swap its generated
+entry in `ROUTES` (`src/index.js`) for the real handler. Do not add links by
+hand — nothing reads a hardcoded nav list.

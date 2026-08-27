@@ -23,7 +23,7 @@ cost** — nobody else in the Riftbound tool space publishes that.
 
 | Config | Worker | Job |
 |---|---|---|
-| `wrangler.toml` | `scoutpost` | the site. Auto-deploys on push to `main` — see §10 |
+| `wrangler.toml` | `scoutpost` | the site. Deploy by hand — see §10. No CI. |
 | `ingest/wrangler.toml` | `scoutpost-ingest` | daily cron data pull (21:15 + 02:15 UTC) |
 | `route-worker/wrangler.toml` | `scoutpost-route` | serves the site at `softsauce.co/scoutpost*` |
 
@@ -205,12 +205,19 @@ event file's `_note`.
 
 | Event | Date | Decks | Notable |
 |---|---|---|---|
-| RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Winner's Diana at $204 beat runner-up Rengar at $428 — cheapest deck ($147) came 5th |
-| RQ Utrecht | 2026-06-14 | 8 | Both finalists had the two *cheapest* decks ($282 / $236); priciest deck came 8th |
-| RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 |
-| RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn at $146 beat runner-up Kennen at $456 |
+| RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Winner's Diana cost roughly half the runner-up's Rengar; cheapest deck came 5th |
+| RQ Utrecht | 2026-06-14 | 8 | Both finalists brought the two *cheapest* decks; priciest deck came 8th |
+| RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 — the only event so far where that happened |
+| RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn beat a runner-up Kennen costing ~3× as much |
 
 1,180 cards, ~1,122 daily prices, 32 decks, 100% price coverage on all decks.
+
+**Don't write dollar figures into this doc.** Prices move every day — the whole
+point of the site — so a number recorded here is wrong by tomorrow and reads
+like a bug to whoever finds the mismatch. Describe the *relationship* (which
+deck was dearer, by roughly what factor) and let the site carry the figures.
+Costs shifted 1–2% across all 32 decks during a single session on 2026-08-27
+purely from one cron run.
 
 **A champion can also appear as a maindeck line.** Vancouver's 8th place
 (BaoBaoaz) lists `Irelia, Fervent` as its champion *and* again inside the main
@@ -240,9 +247,9 @@ Riot **"Legal Jibber Jabber"** policy:
 v1 scope: no user accounts, no public submissions, no leaderboards.
 
 **Build cost is computed at read time, never stored.** Most recent price *per
-card* (so a card missing a day falls back to its own last price rather than
-vanishing). `deck_cost_snapshots` is history for future charting only — no page
-reads a cost from it.
+card*, so a card missing a day falls back to its own last price rather than
+vanishing — bounded to a 30-day window, see §10. `deck_cost_snapshots` is
+history for future charting only; no page reads a cost from it.
 
 **Base path**: every internal link is built from `BASE_PATH`. To move to a
 dedicated domain: attach it to the Worker, set `BASE_PATH="/"`, update
@@ -288,33 +295,62 @@ Smaller open items:
 
 ---
 
-## 10. Deployment
+## 10. Deploying, and the data cadence
 
-**Deploying is manual and deliberately so.** There is no CI. Pushing to `main`
-changes nothing on the live site.
+### Deploying is manual — there is no CI
 
-Earlier versions of this doc claimed an auto-deploy that did not exist —
-`wrangler deployments list` shows every deployment as `Source: Unknown`, i.e.
-hand-run. A GitHub Actions workflow was added on 2026-08-27 and removed the same
-day: the user prefers deploying by hand, and a workflow that fails on every push
-for want of a `CLOUDFLARE_API_TOKEN` secret is worse than no workflow. It is
-recoverable from git history (`git log --diff-filter=D -- .github`) if that
-preference ever changes; it needs only that one secret.
-
-**So: push and deploy, in that order.** They are separate steps.
+Pushing to `main` changes nothing on the live site. Push and deploy are two
+separate steps, in that order.
 
 ```bash
-npx wrangler deploy                                    # the site
-npx wrangler deploy --config ingest/wrangler.toml      # cron ingest
+npx wrangler deploy                                     # the site
+npx wrangler deploy --config ingest/wrangler.toml       # cron ingest
 npx wrangler deploy --config route-worker/wrangler.toml # the /scoutpost route
 ```
 
-Push **and** deploy, in that order. Verify with a request to the live URL rather
-than trusting the command's output: `wrangler deploy` prints "No updated asset
-files to upload" even in runs where `public/` did change, so that line is not
-evidence either way.
+**Verify against the live URL, never against wrangler's output.** It prints
+"No updated asset files to upload" even on runs where `public/` demonstrably
+changed, so that line is not evidence in either direction.
 
 ```bash
 curl -s https://softsauce.co/scoutpost/styles.css | grep -o '\-\-accent: *#[0-9a-f]*'
 ```
 
+Both this doc and the README once claimed the site auto-deployed on push. It
+never did — `wrangler deployments list` shows every deployment as
+`Source: Unknown`, i.e. hand-run. A GitHub Actions workflow was added and
+removed on 2026-08-27: the user prefers deploying by hand, and a workflow that
+red-Xes on every push for want of a `CLOUDFLARE_API_TOKEN` is worse than none.
+Recover it with `git log --diff-filter=D -- .github` if that ever changes; it
+needs only that one secret.
+
+### What actually requires a deploy
+
+| Change | Deploy? |
+|---|---|
+| Anything in `src/` or `public/` | **Yes** |
+| A new event | No — the importer writes to D1 |
+| New prices | No — the cron writes to D1 |
+
+### Prices
+
+The ingest Worker's cron runs **21:15 and 02:15 UTC** daily. TCGCSV publishes
+around 20:00 UTC, so 21:15 is the real pull and 02:15 is the retry if the source
+was late or down.
+
+Stored: **one row per card per day**, `market_price` and `low_price`, keyed
+`(card_id, date)` with `ON CONFLICT DO UPDATE` — so two crons a day still leave
+exactly one row per card per day. Both figures are TCGplayer's own, passed
+through unmodified; **nothing is averaged locally**. Only the finish matching
+the card is stored, so there is no separate foil price history.
+
+Costs are computed at read time and reach the site within the edge cache TTL
+(`s-maxage=300`, ≤5 minutes of the cron finishing).
+
+**`PRICE_WINDOW_DAYS` in `src/lib/queries.js` is load-bearing.** The per-card
+"latest price" lookup only scans the last 30 days. Without that bound it scans
+every price row ever written on every page view — ~1,100 rows/day accumulating
+to ~410k/year, for identical output. `d1 info` already showed 682k rows read in
+24h at near-zero traffic against a 5M/day free-tier limit, and that number grows
+with history depth whether or not traffic does. Do not remove the `WHERE`
+clause. Widening the window is safe; deleting it is not.

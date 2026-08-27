@@ -10,12 +10,32 @@
  * fall back to its own last known price instead of dropping out of the total.
  */
 
-/** Latest price row per card. Reused by every cost query. */
+/**
+ * Latest price row per card. Reused by every cost query.
+ *
+ * The ranking is per-card, not a global "newest date", so a card absent from
+ * today's feed keeps its own last known price instead of dropping out of a deck
+ * total. That fallback is the whole point of the window function.
+ *
+ * The WHERE clause is what keeps it affordable. Without it this scans every
+ * price row ever recorded on every page view — fine at a few thousand rows,
+ * ~410k/year later, for identical output. Bounding the scan to the most recent
+ * PRICE_WINDOW_DAYS makes the cost constant no matter how deep the history
+ * gets, and idx_prices_date serves it.
+ *
+ * The tradeoff: a card with no price for longer than the window reads as
+ * unpriced rather than quoting a stale figure. That is the better answer — the
+ * deck page already shows how many of its cards are priced, so an honest gap is
+ * visible where a months-old price would silently look current.
+ */
+const PRICE_WINDOW_DAYS = 30;
+
 const LATEST_PRICES = `
   latest AS (
     SELECT card_id, market_price, low_price, date,
            ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY date DESC) AS rn
       FROM price_snapshots
+     WHERE date >= date((SELECT MAX(date) FROM price_snapshots), '-${PRICE_WINDOW_DAYS} day')
   )`;
 
 export async function latestPriceDate(db) {
