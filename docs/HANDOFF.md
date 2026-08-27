@@ -205,7 +205,7 @@ event file's `_note`.
 
 | Event | Date | Decks | Notable |
 |---|---|---|---|
-| RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Two Diana and two Irelia in the top 8; Alanzq's Diana won |
+| RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Winner's Diana at $204 beat runner-up Rengar at $428 — cheapest deck ($147) came 5th |
 | RQ Utrecht | 2026-06-14 | 8 | Both finalists had the two *cheapest* decks ($282 / $236); priciest deck came 8th |
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn at $146 beat runner-up Kennen at $456 |
