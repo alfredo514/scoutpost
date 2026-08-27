@@ -424,12 +424,25 @@ shows up as an anomalous row the next morning rather than only on a bill:
 npx wrangler d1 execute scoutpost --remote --command "SELECT started_at, rows_written, message FROM ingest_runs WHERE job='images' ORDER BY id DESC LIMIT 5"
 ```
 
-### Still open — two UX decisions, nothing built yet
+### On the page
 
-No page renders an image so far; only the plumbing exists.
+Decklist rows carry a 40x56 thumbnail, and hovering a row (or tab-focusing it)
+shows the large rendition pinned to the right of the viewport, big enough to
+read the card text.
 
-- A hover preview needs JavaScript. `public/styles.css` opens by promising "no
-  JS required to read anything on the page" and the site ships none. Build it as
-  progressive enhancement; do not quietly drop that promise.
-- Deck pages carry 39+ rows. Thumbs on every row is ~1 MB per page even lazy
-  loaded. Decide row-thumbs vs hover-only before building.
+**Both were built with no JavaScript, and the site still ships none.** The
+enlargement is a `background-image` on an element that stays `display: none`
+until `:hover`/`:focus-visible`, and browsers do not fetch a background for an
+unrendered element. Measured on the live page: a 31-row decklist loads 31
+thumbnails and **zero** enlargements, and one hover fetches **exactly one**.
+Do not "improve" this with a JS preloader — it would undo the whole property.
+
+Three details that are load-bearing:
+
+- `.card-zoom` is `position: fixed`, not absolute, because `.table-wrap` sets
+  `overflow: hidden` to clip its rounded corners and would crop anything
+  escaping the table.
+- `pointer-events: none`, so the preview can never intercept a click.
+- The hover rule sits behind `(hover: hover)` so a touch device cannot latch a
+  preview open on tap; the reveal needs a viewport of at least 900px, since
+  narrower screens have nowhere to put it.

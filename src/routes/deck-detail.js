@@ -10,8 +10,52 @@ import {
   url,
 } from '../lib/render.js';
 import { getDeck, getDeckCards } from '../lib/queries.js';
+import { cardImageSrc } from '../lib/images.js';
 
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+/**
+ * One row's card cell: thumbnail, name, printed code, and a full-size
+ * enlargement shown on hover or keyboard focus.
+ *
+ * The enlargement carries **no JavaScript**. Its art is a `background-image`
+ * on an element that is `display: none` until `:hover`/`:focus`, and browsers
+ * do not fetch a background for an unrendered element — so the ~100 KB large
+ * rendition costs nothing on page load and is fetched once, on first hover,
+ * then served from cache for a year. That is what lets a 31-row decklist carry
+ * a readable preview per row without weighing anything.
+ *
+ * The thumbnail is a real <img> with explicit dimensions and `loading="lazy"`,
+ * so rows below the fold cost nothing and none of them shift the layout.
+ *
+ * A card with no mirrored art degrades to an empty frame rather than a broken
+ * image, and the row still reads correctly.
+ */
+function cardCell(env, c) {
+  const thumb = cardImageSrc(env, c, 'small');
+  const large = cardImageSrc(env, c, 'large');
+  const code = c.public_code || `${c.set_id}-${c.collector_number}`;
+
+  const art = thumb
+    ? `<img class="card-thumb" src="${esc(thumb)}" width="40" height="56"
+             loading="lazy" decoding="async" alt=""/>`
+    : '<span class="card-thumb card-thumb--empty" aria-hidden="true"></span>';
+
+  // aria-hidden: the enlargement is the same card the row already names, so a
+  // screen reader gains nothing from it.
+  const zoom = large
+    ? `<span class="card-zoom" aria-hidden="true" style="--art:url('${esc(large)}')"></span>`
+    : '';
+
+  return `<span class="card-cell"${large ? ' tabindex="0"' : ''}>
+          ${art}
+          <span class="card-text">
+            <span class="card-name">${esc(c.name)}</span>
+            <span class="card-code">${esc(code)}</span>
+          </span>
+          ${zoom}
+        </span>`;
+}
 
 export async function onRequestGet({ env, params }) {
   const deck = await getDeck(env.DB, params.id);
@@ -32,8 +76,7 @@ export async function onRequestGet({ env, params }) {
   const cardRow = (c) => `<tr>
       <td data-label="Qty" class="num qty">${esc(c.quantity)}×</td>
       <td data-label="Card">
-        <span class="card-name">${esc(c.name)}</span>
-        <span class="card-code">${esc(c.public_code || `${c.set_id}-${c.collector_number}`)}</span>
+        ${cardCell(env, c)}
       </td>
       <td data-label="Rarity">${esc(c.rarity || '—')}</td>
       <td data-label="Unit price" class="num">${money(c.market_price)}</td>

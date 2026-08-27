@@ -323,6 +323,65 @@ section + section { margin-top: 2.6rem; }
   border-radius: 999px;
 }
 
+/* ───────────────────────── Card art ─────────────────────────
+ * A thumbnail on every decklist row, and a readable enlargement on hover or
+ * keyboard focus.
+ *
+ * No JavaScript is involved, which is the point. The enlargement's art is a
+ * background-image on an element that stays `display: none` until hover, and
+ * browsers don't fetch a background for an unrendered element — so a 31-row
+ * decklist loads 31 small thumbnails and none of the ~100 KB enlargements
+ * until someone actually asks for one. First hover fetches it; the immutable
+ * cache keeps it for a year.
+ *
+ * The enlargement is `position: fixed` rather than absolute because
+ * `.table-wrap` sets `overflow: hidden` to clip its own rounded corners, which
+ * would otherwise crop anything escaping the table. Fixed elements ignore
+ * ancestor overflow, so it can sit outside the table without the wrapper
+ * needing to give up its corners. */
+
+.card-cell { display: flex; align-items: center; gap: .65rem; }
+.card-text { min-width: 0; }
+
+.card-thumb {
+  width: 40px; height: 56px; flex: none;
+  border-radius: 4px; object-fit: cover;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line);
+}
+/* A card whose art hasn't mirrored yet keeps the row's alignment. */
+.card-thumb--empty {
+  display: block;
+  border: 1px dashed var(--line);
+  box-shadow: none; background: transparent;
+}
+
+.card-zoom {
+  display: none;
+  position: fixed; right: 1.5rem; top: 50%;
+  transform: translateY(-50%);
+  width: min(420px, 32vw);
+  aspect-ratio: 744 / 1039;
+  max-height: 84vh;
+  background: var(--art) center / contain no-repeat;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .28),
+              0 24px 60px rgba(0, 0, 0, .65),
+              0 0 40px rgba(var(--accent-rgb), .12);
+  z-index: 120;
+  pointer-events: none;  /* never blocks the row underneath */
+}
+
+/* Keyboard focus reveals it wherever there's room. */
+@media (min-width: 900px) {
+  .card-cell:focus-visible .card-zoom { display: block; }
+}
+/* Pointer hover only on devices that actually hover — a touch device would
+ * otherwise latch the preview open on tap. */
+@media (min-width: 900px) and (hover: hover) {
+  .card-cell:hover .card-zoom { display: block; }
+}
+
 /* ───────────────────────── Planned sections ─────────────────────────
  * Sections in the nav that don't have a real page yet. Pink marks "not yet",
  * which keeps it clearly distinct from lime, the colour of things you can use. */
@@ -432,6 +491,11 @@ section + section { margin-top: 2.6rem; }
   .data-table .section-row td { display: block; text-align: left; border-radius: var(--radius-sm); }
   .data-table .section-row td::before { content: none; }
   .card-name, .card-code, .legend { text-align: right; }
+  /* Stacked rows put the label left and content right; keep the thumb tucked
+   * against its text rather than stranded across the gap. */
+  .card-cell { justify-content: flex-end; gap: .55rem; }
+  .card-thumb { width: 34px; height: 48px; order: 2; }
+  .card-text { order: 1; }
   .data-table tfoot { display: block; }
   .data-table tfoot tr { background: var(--surface-2); }
   .data-table tfoot td { display: flex; justify-content: space-between; }

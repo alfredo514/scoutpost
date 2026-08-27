@@ -125,7 +125,8 @@ export async function getDeckCards(db, deckId) {
     .prepare(
       `WITH ${LATEST_PRICES}
        SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
-              c.rarity, c.card_type, c.image_thumb_url, c.tcgcsv_product_id,
+              c.rarity, c.card_type, c.image_thumb_url, c.image_large_url,
+              c.tcgcsv_product_id,
               dc.quantity, dc.section,
               p.market_price, p.low_price, p.date AS price_date,
               ROUND(COALESCE(p.market_price, 0) * dc.quantity, 2) AS line_total
