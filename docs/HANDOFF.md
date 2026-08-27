@@ -23,7 +23,7 @@ cost** — nobody else in the Riftbound tool space publishes that.
 
 | Config | Worker | Job |
 |---|---|---|
-| `wrangler.toml` | `scoutpost` | the site. Auto-deploys on push to `main`. |
+| `wrangler.toml` | `scoutpost` | the site. **Deploy manually: `npx wrangler deploy`.** |
 | `ingest/wrangler.toml` | `scoutpost-ingest` | daily cron data pull (21:15 + 02:15 UTC) |
 | `route-worker/wrangler.toml` | `scoutpost-route` | serves the site at `softsauce.co/scoutpost*` |
 
@@ -285,3 +285,27 @@ Smaller open items:
   limitation, not a bug.
 - Decks show `main_cost` / `side_cost` separately; the headline cost includes
   the sideboard. The user was offered maindeck-only and kept the combined total.
+
+---
+
+## 10. Deployment is manual — there is no CI
+
+An earlier version of this doc said the site auto-deploys on push to `main`. It
+does not. There is no `.github/workflows`, and pushing alone changes nothing on
+the live site — this was discovered the hard way after a push sat for four
+minutes with the old CSS still serving.
+
+```bash
+npx wrangler deploy                                    # the site
+npx wrangler deploy --config ingest/wrangler.toml      # cron ingest
+npx wrangler deploy --config route-worker/wrangler.toml # the /scoutpost route
+```
+
+Push **and** deploy, in that order. Verify with a request to the live URL rather
+than trusting the command's output: `wrangler deploy` prints "No updated asset
+files to upload" even in runs where `public/` did change, so that line is not
+evidence either way.
+
+```bash
+curl -s https://softsauce.co/scoutpost/styles.css | grep -o '\-\-accent: *#[0-9a-f]*'
+```
