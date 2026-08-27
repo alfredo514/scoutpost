@@ -1,0 +1,225 @@
+# Scoutpost — session handoff
+
+Written 2026-08-27. Read this first in a new session; it records the things
+that are expensive to rediscover.
+
+---
+
+## 1. What this is and where it lives
+
+Riftbound TCG data site. Headline feature: **top-8 decklists with a live build
+cost** — nobody else in the Riftbound tool space publishes that.
+
+| | |
+|---|---|
+| Live | https://softsauce.co/scoutpost |
+| Worker URL | https://scoutpost.scoutpost.workers.dev |
+| Repo | https://github.com/alfredo514/scoutpost (public) |
+| Local | `C:\Users\alfre\Downloads\scoutpost` |
+| Cloudflare | alfredoalamdar514@gmail.com, account `2d46810c6a919c5c38787a4842f173bd` |
+| D1 | `scoutpost`, id `9aa22aa8-22b8-4cf0-ba2c-6dc6e9d4b15c`, region WNAM |
+
+**Three Workers**, deployed separately:
+
+| Config | Worker | Job |
+|---|---|---|
+| `wrangler.toml` | `scoutpost` | the site. Auto-deploys on push to `main`. |
+| `ingest/wrangler.toml` | `scoutpost-ingest` | daily cron data pull (21:15 + 02:15 UTC) |
+| `route-worker/wrangler.toml` | `scoutpost-route` | serves the site at `softsauce.co/scoutpost*` |
+
+`softsauce.co` itself is the user's portfolio site, served from **nginx on a
+Ugreen NAS**. The route worker claims only `/scoutpost*`; everything else still
+goes to the NAS. Don't touch the NAS when working on Scoutpost.
+
+**Status: fully operational and unattended.** Cron has run on its own and
+written good data (`ingest_runs` shows `status: ok`).
+
+---
+
+## 2. Environment quirks that will waste your time
+
+**Node is not on PATH for the Bash tool.** It's installed at
+`C:\Program Files\nodejs` but this session began before the install. Every Bash
+call needs:
+
+```bash
+export PATH="/c/Program Files/nodejs:$PATH"
+```
+
+A new session may not need this — check `node --version` first.
+
+**`wrangler d1 execute --command` must be a SINGLE LINE.** Multi-line SQL gets
+mangled before it reaches D1 and fails with a misleading
+`no such column: c.set_id`. This cost real time. Keep queries on one line.
+
+**Don't pipe wrangler through `2>/dev/null`.** Errors go to stderr; suppressing
+them turns a real failure into a silently empty result. Output is pretty-printed
+JSON, so grep for `'"field":'` and `paste` the lines together, or parse with node.
+
+**Git Bash `/tmp` is not Windows `C:\tmp`.** Node run from Bash can't read a file
+written to `/tmp`. Use the scratchpad directory with a Windows-style path.
+
+**Interactive OAuth can't be backgrounded.** `wrangler login` in a background
+task times out before the user can click. Run it in the foreground with a long
+timeout, or have the user run it themselves.
+
+---
+
+## 3. Verified API facts — do not re-derive
+
+**TCGCSV** (`tcgcsv.com`) — unofficial one-person mirror of TCGplayer prices, no
+uptime guarantee. Updates ~20:00 UTC.
+
+- Riftbound is **`categoryId 89`**
+- `/tcgplayer/89/groups` → `{success, errors, results:[{groupId, abbreviation, ...}]}`
+- `/tcgplayer/89/{groupId}/products` and `/prices`
+- Sealed product has `extendedData: []`; singles carry `Number` (`021/166`) and `Rarity`
+- Prices carry `subTypeName`: `Normal` | `Foil`
+
+**Riftscribe** (`riftscribe.gg/api/cards`) — card catalogue, free, no key.
+
+- Returns a **bare JSON array**, no envelope, no total count
+- Paginate `?limit=200&offset=N`. **`limit=500` silently returns an empty
+  array** — never raise the page size, and never treat an empty first page as
+  "no cards"
+- Every card carries a multi-kilobyte `image_blur_data_url`. Never store it.
+
+**Join key**: TCGCSV group `abbreviation` (`VEN`) ↔ Riftscribe `set_id`, then
+collector number + variant (`021a/166` → number 21, variant `a`).
+
+---
+
+## 4. Four bugs that were found the hard way
+
+These are all fixed. They are recorded because each one produced *plausible
+wrong numbers* rather than an error, which is the failure mode this project
+most needs to avoid.
+
+**Rares and epics are sold FOIL-ONLY.** TCGplayer gives them a `Foil` price row
+and no `Normal` row. The subtype fallback read
+`subtypes[wanted] ?? subtypes.Normal`, so for a normal-finish card it fell back
+to the very thing that was missing and gave up. Result: **97% of rares and 96%
+of epics had no price** — exactly the cards that dominate a deck's cost.
+Coverage went 633 → 1,122 rows when fixed.
+
+**A collector number above the printed set size is a secret rare.** Not
+slightly pricier — 100-1000x pricier. Baron Nashor is **$18.92** as
+`UNL-147/219` but **$1,634.89** as `UNL-238/219`. Any name-based resolution must
+exclude these.
+
+**A card can be in both maindeck and sideboard.** `deck_cards` was keyed
+`(deck_id, card_id)`, which silently merged those rows and lost a card. The key
+is now `(deck_id, card_id, section)` where section is `main` | `sideboard`.
+
+**Riot article dates are PUBLICATION dates, not event dates.** This has caught
+all three events so far. Barcelona's article said 8/26 (a Wednesday); the event
+was Sat 8/22–Sun 8/23. Always corroborate with Eventbrite/Liquipedia and record
+the day the top 8 was decided.
+
+---
+
+## 5. Adding an event
+
+A data operation. **No template is ever edited.**
+
+```bash
+cp data/events/_TEMPLATE.json data/events/<slug>.json   # fill it in
+node scripts/import-decks.mjs
+npx wrangler d1 execute scoutpost --remote --file=build/import.sql -y
+npx wrangler deploy      # only if site code changed
+```
+
+Files starting with `_` are skipped by the importer — useful for staging an
+event whose date isn't confirmed yet.
+
+Deck JSON: `cards[]` is the maindeck (legend + champion + main + battlefields +
+runes all go here), `sideboard[]` is the sideboard. Entries take `code`
+(`OGN-025`, unambiguous, preferred) or `name`.
+
+**Name resolution handles three catalogue quirks:** legends are stored without
+the champion prefix (`Kennen, Heart of the Tempest` → `Heart of the Tempest`),
+starter reprints carry a ` - Starter` suffix, and most cards have several
+printings. Ambiguity resolves to the base printing (no letter variant, not
+showcase/signature, collector number within set size) and **reports each pick**.
+If there's no single base printing it fails loudly.
+
+### Entering lists from a Riot article
+
+`WebFetch` on a `playriftbound.com/news/.../xxx-top-decks/` URL extracts the
+full top 8 reliably. **It is an automated read, so verify before trusting:**
+
+- Every deck should total **39 maindeck + 12 runes + 3 battlefields**. All 24
+  decks entered so far hit this exactly; a deck that doesn't is a red flag.
+- Every legend should resolve to a card with `card_type = 'Legend'`.
+- Check unpriced counts are 0.
+- Corroborate the winner/runner-up against independent coverage.
+
+Attendance figures **disagree between sources** every time (Riot's day-one
+number vs Liquipedia's entrant count). Use Riot's, note the discrepancy in the
+event file's `_note`.
+
+---
+
+## 6. Current data
+
+| Event | Date | Decks | Notable |
+|---|---|---|---|
+| RQ Utrecht | 2026-06-14 | 8 | Both finalists had the two *cheapest* decks ($282 / $236); priciest deck came 8th |
+| RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 |
+| RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn at $146 beat runner-up Kennen at $456 |
+
+1,180 cards, ~1,122 daily prices, 24 decks, 100% price coverage on all decks.
+
+An earlier **NRG Milwaukee** event was entered by hand from user-pasted lists,
+then deleted at the user's request. Its JSON is recoverable from git history if
+ever wanted — it's the only event whose prices were cross-checked against
+independently published figures (agreed to 0.3%).
+
+---
+
+## 7. Constraints — permanent
+
+Riot **"Legal Jibber Jabber"** policy:
+
+- ❌ No LLC or legal entity, no crowdfunding, no paywall or paid ad-free tier
+- ✅ Ads permitted, but not at launch — traffic minimums. Fixed-height
+  `.ad-slot` containers are already reserved so adding them can't wreck CLS.
+- ✅ Footer disclaimer required **verbatim** — it's `DISCLAIMER` in
+  `src/lib/render.js`. Do not reword.
+
+v1 scope: no user accounts, no public submissions, no leaderboards.
+
+**Build cost is computed at read time, never stored.** Most recent price *per
+card* (so a card missing a day falls back to its own last price rather than
+vanishing). `deck_cost_snapshots` is history for future charting only — no page
+reads a cost from it.
+
+**Base path**: every internal link is built from `BASE_PATH`. To move to a
+dedicated domain: attach it to the Worker, set `BASE_PATH="/"`, update
+`SITE_ORIGIN`, delete `route-worker`. Nothing else changes.
+
+---
+
+## 8. What's next
+
+Not yet built (roadmap order from the original brief):
+
+- [ ] **Card pages with price history** — `price_snapshots` has the raw daily
+      data; nothing surfaces it yet
+- [ ] **Ranking pages** — most expensive overall / by set / signatures, biggest
+      movers
+- [ ] **Box EV calculator**
+
+When `/cards` and `/box-ev` ship, add them to the `nav` array in
+`src/lib/render.js` — they're deliberately unlinked while unbuilt.
+
+Smaller open items:
+
+- `robots.txt` lives at the domain root on the **NAS**, not in this repo. It
+  still needs `Sitemap: https://softsauce.co/scoutpost/sitemap.xml` added.
+- Submit that sitemap in Google Search Console.
+- 58 of 1,180 cards are unpriced — showcase/promo printings with special
+  numbering (`SP3/006`) that have no catalogue counterpart. Documented
+  limitation, not a bug.
+- Decks show `main_cost` / `side_cost` separately; the headline cost includes
+  the sideboard. The user was offered maindeck-only and kept the combined total.
