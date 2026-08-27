@@ -36,36 +36,71 @@ written good data (`ingest_runs` shows `status: ok`).
 
 ---
 
-## 2. Environment quirks that will waste your time
+## 2. Starting work on a machine for the first time
 
-**Node is not on PATH for the Bash tool.** It's installed at
-`C:\Program Files\nodejs` but this session began before the install. Every Bash
-call needs:
+This doc is in the repo, so it travels with a clone. Three things do **not**
+travel, because they are correctly gitignored or machine-local:
+
+```bash
+git clone https://github.com/alfredo514/scoutpost.git
+cd scoutpost
+npm install          # node_modules is gitignored
+npx wrangler login   # auth is per-machine
+```
+
+**`.env` does not travel.** It holds `INGEST_TOKEN`, the bearer token for
+manually triggering ingestion. It is gitignored deliberately. You only need it
+to force a run — the cron works server-side regardless — so on a new machine
+either copy `.env` across by hand, or rotate it:
+
+```bash
+npx wrangler secret put INGEST_TOKEN --config ingest/wrangler.toml
+```
+
+(and save the new value into a local `.env`). The `database_id` in the two
+wrangler configs *is* committed and needs no setup.
+
+Everything else — schema, code, event JSON, this doc — comes down with the
+clone. Nothing needs re-creating in Cloudflare.
+
+---
+
+## 3. Environment quirks that will waste your time
+
+**Windows only — `Node` is not on PATH for the Bash tool.** It's installed at
+`C:\Program Files\nodejs` but the session began before the install, so every
+Bash call needs the line below. On macOS this does not apply. Check
+`node --version` first either way.
 
 ```bash
 export PATH="/c/Program Files/nodejs:$PATH"
 ```
 
-A new session may not need this — check `node --version` first.
+**Windows only — Git Bash `/tmp` is not `C:\tmp`.** Node invoked from Bash
+can't read a file written to `/tmp`. Use the scratchpad with a Windows-style
+path. On macOS `/tmp` behaves normally.
 
-**`wrangler d1 execute --command` must be a SINGLE LINE.** Multi-line SQL gets
-mangled before it reaches D1 and fails with a misleading
+**All platforms — `wrangler d1 execute --command` must be a SINGLE LINE.**
+Multi-line SQL gets mangled before it reaches D1 and fails with a misleading
 `no such column: c.set_id`. This cost real time. Keep queries on one line.
 
-**Don't pipe wrangler through `2>/dev/null`.** Errors go to stderr; suppressing
-them turns a real failure into a silently empty result. Output is pretty-printed
-JSON, so grep for `'"field":'` and `paste` the lines together, or parse with node.
+**All platforms — don't pipe wrangler through `2>/dev/null`.** Errors go to
+stderr; suppressing them turns a real failure into a silently empty result.
+Output is pretty-printed JSON, so grep for `'"field":'` and `paste` the lines
+together, or parse it with node.
 
-**Git Bash `/tmp` is not Windows `C:\tmp`.** Node run from Bash can't read a file
-written to `/tmp`. Use the scratchpad directory with a Windows-style path.
+**All platforms — interactive OAuth can't be backgrounded.** `wrangler login`
+in a background task times out before the user can click. Run it in the
+foreground with a long timeout, or have the user run it themselves.
 
-**Interactive OAuth can't be backgrounded.** `wrangler login` in a background
-task times out before the user can click. Run it in the foreground with a long
-timeout, or have the user run it themselves.
+**Two machines, one database.** D1 is remote, so both machines write to the
+same live data. There is no local copy to diverge — but it does mean an import
+run from either machine takes effect immediately for everyone. Pull before you
+start, push when you finish.
 
 ---
 
-## 3. Verified API facts — do not re-derive
+## 4. Verified API facts — do not re-derive
 
 **TCGCSV** (`tcgcsv.com`) — unofficial one-person mirror of TCGplayer prices, no
 uptime guarantee. Updates ~20:00 UTC.
@@ -89,7 +124,7 @@ collector number + variant (`021a/166` → number 21, variant `a`).
 
 ---
 
-## 4. Four bugs that were found the hard way
+## 5. Four bugs that were found the hard way
 
 These are all fixed. They are recorded because each one produced *plausible
 wrong numbers* rather than an error, which is the failure mode this project
@@ -118,7 +153,7 @@ the day the top 8 was decided.
 
 ---
 
-## 5. Adding an event
+## 6. Adding an event
 
 A data operation. **No template is ever edited.**
 
@@ -160,7 +195,7 @@ event file's `_note`.
 
 ---
 
-## 6. Current data
+## 7. Current data
 
 | Event | Date | Decks | Notable |
 |---|---|---|---|
@@ -177,7 +212,7 @@ independently published figures (agreed to 0.3%).
 
 ---
 
-## 7. Constraints — permanent
+## 8. Constraints — permanent
 
 Riot **"Legal Jibber Jabber"** policy:
 
@@ -200,7 +235,7 @@ dedicated domain: attach it to the Worker, set `BASE_PATH="/"`, update
 
 ---
 
-## 8. What's next
+## 9. What's next
 
 Not yet built (roadmap order from the original brief):
 
