@@ -23,3 +23,7 @@ database_id = "9aa22aa8-22b8-4cf0-ba2c-6dc6e9d4b15c"
 
 [observability]
 enabled = true
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "scoutpost-images"

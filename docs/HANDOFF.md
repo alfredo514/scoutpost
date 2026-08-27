@@ -357,56 +357,79 @@ clause. Widening the window is safe; deleting it is not.
 
 ---
 
-## 11. Card images — in progress
+## 11. Card images
 
-**Nothing needs scraping or matching.** Riftscribe publishes image URLs with the
-catalogue and the ingest already stores them. All 1,180 cards have all three.
+Card art is **mirrored into R2** and served by the site Worker. Pages never link
+to `cdn.riftscribe.gg`.
 
-| Rendition | Size | Dimensions | Column | Serve it? |
+| Rendition | Size | Dimensions | Column | Mirrored? |
 |---|---|---|---|---|
-| small webp | 25 KB | 300×418 | `image_thumb_url` | yes — list rows |
-| medium webp | 71 KB | 600×837 | *(not stored)* | — |
-| large webp | 97 KB | 744×1039 | `image_large_url` | yes — previews, card pages |
+| small webp | ~26 KB | 300×418 | `image_thumb_url` | yes — list rows |
+| medium webp | ~71 KB | 600×837 | *(not stored)* | no |
+| large webp | ~100 KB | 744×1039 | `image_large_url` | yes — previews |
 | original png | **778 KB** | — | `image_url` | **never** |
 
-Sizes measured 2026-08-27 on OGN-001. The original PNG is 8× heavier than
-`large` at no useful gain *and* is the only rendition without a long cache
-(`max-age=14400` against `immutable, 1yr` on the webps). Its URL is kept as the
-canonical source; no page should ever serve it.
+Averages from a 25-card sample, 2026-08-27. **Do not mirror the originals**:
+8× heavier than `large` for no useful gain, ~918 MB against ~145 MB, and the
+only rendition without a long cache (`max-age=14400` vs `immutable, 1yr`).
 
-### Done
+### How it works
 
-- `image_large_url` column added to `cards`, live and in `db/schema.sql`
-- `ingest/src/catalog.js` stores it; backfilled 1,180/1,180
+- `ingest/src/images.js` — the mirror. `R2 key = <size>/<filename>`, where the
+  filename is Riftscribe's content hash.
+- `src/routes/card-image.js` — serves `/card-image/<size>/<file>` from R2 with a
+  one-year immutable cache. Safe because the key's bytes can never change.
+- `src/lib/images.js` — `cardImageSrc(env, card, size)` builds a page's `src`.
+  Returns null when unavailable, so callers render a placeholder.
+- `image_mirrored` on `cards` holds the basename already in R2. Changed art
+  means a changed hash means a changed name, so it re-mirrors automatically.
 
-### Blocked, and it needs the user
-
-Hosting is meant to be **R2**, but `wrangler r2 bucket create` fails with
-`Please enable R2 through the Cloudflare Dashboard [code: 10042]`. R2 is a
-one-time account activation and requires a card on file even for the free tier,
-so it cannot be done from here. Once enabled:
+Run it manually; repeat until `remaining` is 0:
 
 ```bash
-npx wrangler r2 bucket create scoutpost-images
+curl -X POST "https://scoutpost-ingest.scoutpost.workers.dev/run?job=images&limit=20" \
+  -H "Authorization: Bearer $INGEST_TOKEN"
 ```
 
-Then add an `IMAGES` R2 binding to `ingest/wrangler.toml` and `wrangler.toml`,
-mirror `small` + `large` in the daily ingest (~145 MB for the full catalogue,
-against a 10 GB free tier, and R2 has **no egress fee**), and serve through the
-site Worker with an immutable cache header. Skip the original PNGs — 918 MB for
-a rendition nothing serves.
+The nightly `all` run mirrors one batch only when something is pending, so it
+catches up over several nights after a new set. That is deliberate: the
+catalogue and price jobs must never lose subrequest budget to images.
 
-### Why not just hotlink cdn.riftscribe.gg
+### The subrequest cap is the binding constraint — measured, not assumed
 
-It would work today; the URLs are in D1. But Riftscribe is a free one-person
-project, and hotlinking moves this site's image bandwidth onto their bill. It is
-also one Cloudflare toggle away from breaking every image here without warning.
-**If hotlinking is ever chosen, ask Riftscribe first.**
+Each card costs **two `fetch()` calls**, and Workers allow **50 subrequests per
+invocation** on this plan. R2 binding calls (`get`/`put`) do *not* count; the
+CDN fetches do.
 
-### Two UX decisions still open
+A run at `limit=50` mirrored exactly 25 cards and failed the other 25 on
+subrequest exhaustion. `MAX_BATCH` is therefore 25 and `DEFAULT_BATCH` is 20.
+**A full backfill can never be one invocation** — loop until `remaining` is 0.
+Raise the cap only on a Workers plan with a higher limit, and re-measure first.
+
+Failures are per-card and non-fatal: the card stays unmirrored and retries next
+run. That is why the half-failed probe above cost nothing.
+
+### Costs
+
+~145 MB for the full catalogue against R2's 10 GB free tier — **1.4%**. Class A
+writes are one-time (~2,360) then near zero, since only new or changed art is
+fetched. Class B reads are shielded by the immutable cache, so the edge answers
+most requests without touching R2. A `$1` budget alert is configured; projected
+spend is $0.
+
+Every mirror run records objects and bytes into `ingest_runs`, so a runaway
+shows up as an anomalous row the next morning rather than only on a bill:
+
+```bash
+npx wrangler d1 execute scoutpost --remote --command "SELECT started_at, rows_written, message FROM ingest_runs WHERE job='images' ORDER BY id DESC LIMIT 5"
+```
+
+### Still open — two UX decisions, nothing built yet
+
+No page renders an image so far; only the plumbing exists.
 
 - A hover preview needs JavaScript. `public/styles.css` opens by promising "no
-  JS required to read anything on the page" and the site currently ships none.
-  Build it as progressive enhancement, and do not quietly drop that promise.
-- Deck pages carry 39+ rows. Thumbs on every row means ~1 MB per page even
-  lazy-loaded. Decide row-thumbs vs hover-only before building.
+  JS required to read anything on the page" and the site ships none. Build it as
+  progressive enhancement; do not quietly drop that promise.
+- Deck pages carry 39+ rows. Thumbs on every row is ~1 MB per page even lazy
+  loaded. Decide row-thumbs vs hover-only before building.

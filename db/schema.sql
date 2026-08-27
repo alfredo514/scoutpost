@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS cards (
   image_url         TEXT,                  -- full-size art
   image_thumb_url   TEXT,                  -- small webp (~25KB) for list rows
   image_large_url   TEXT,                  -- large webp (~97KB) for previews
+  image_mirrored    TEXT,                  -- basename mirrored to R2; NULL = not yet.
+                                           -- Riftscribe content-hashes filenames, so a
+                                           -- changed name means changed art: re-mirror.
                                            -- image_url is the 778KB original PNG:
                                            -- canonical source, never served
   tcgcsv_product_id INTEGER,               -- NULL until matched to a TCGplayer product

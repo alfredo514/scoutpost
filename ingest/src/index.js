@@ -28,6 +28,7 @@ import {
   writePrices,
   writeProductLinks,
 } from './prices.js';
+import { countPending, mirrorImages } from './images.js';
 import { fail, log, recordRun, utcDate } from './util.js';
 
 /** Refresh the card catalogue from Riftscribe. */
@@ -100,12 +101,54 @@ async function runPrices(env, trigger) {
   }
 }
 
+/**
+ * Mirror a batch of card art into R2.
+ *
+ * One batch per invocation, by necessity — see the subrequest note in
+ * images.js. The nightly cron therefore catches up gradually after a new set
+ * rather than in one run, which is fine: nothing is user-visible until the art
+ * lands, and a missing image degrades to a placeholder.
+ *
+ * Bytes and object counts go into ingest_runs so a runaway shows up as an
+ * anomalous row in data we already keep, not only on a bill.
+ */
+async function runImages(env, trigger, { limit } = {}) {
+  const startedAt = new Date().toISOString();
+  try {
+    const r = await mirrorImages(env.DB, env.IMAGES, { limit });
+    await recordRun(env.DB, {
+      startedAt,
+      job: 'images',
+      status: 'ok',
+      trigger,
+      rowsWritten: r.objects,
+      message: `${(r.bytes / 1024 / 1024).toFixed(2)} MB, ${r.failed} failed, ${r.remaining} remaining`,
+    });
+    return { job: 'images', status: 'ok', ...r };
+  } catch (e) {
+    fail('images job failed:', e.message, e.detail ?? '');
+    await recordRun(env.DB, {
+      startedAt,
+      job: 'images',
+      status: 'failed',
+      trigger,
+      message: e.message,
+    });
+    return { job: 'images', status: 'failed', message: e.message };
+  }
+}
+
 async function runAll(env, trigger) {
   log(`run start (${trigger}) for ${utcDate()}`);
   const catalog = await runCatalog(env, trigger);
   const prices = await runPrices(env, trigger);
-  log('run complete', JSON.stringify({ catalog, prices }));
-  return { date: utcDate(), catalog, prices };
+  // Runs last and only when there is something to do, so the catalogue and
+  // prices — the jobs the site actually depends on — never lose subrequest
+  // budget to image mirroring.
+  const pending = await countPending(env.DB).catch(() => 0);
+  const images = pending > 0 ? await runImages(env, trigger) : { job: 'images', status: 'idle' };
+  log('run complete', JSON.stringify({ catalog, prices, images }));
+  return { date: utcDate(), catalog, prices, images };
 }
 
 export default {
@@ -138,7 +181,11 @@ export default {
     let result;
     if (job === 'catalog') result = await runCatalog(env, 'manual');
     else if (job === 'prices') result = await runPrices(env, 'manual');
-    else result = await runAll(env, 'manual');
+    else if (job === 'images') {
+      // ?limit= lets a backfill loop pick its batch size. Repeat until the
+      // returned `remaining` is 0.
+      result = await runImages(env, 'manual', { limit: url.searchParams.get('limit') });
+    } else result = await runAll(env, 'manual');
 
     return Response.json(result);
   },
