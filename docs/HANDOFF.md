@@ -147,9 +147,10 @@ exclude these.
 is now `(deck_id, card_id, section)` where section is `main` | `sideboard`.
 
 **Riot article dates are PUBLICATION dates, not event dates.** This has caught
-all three events so far. Barcelona's article said 8/26 (a Wednesday); the event
-was Sat 8/22–Sun 8/23. Always corroborate with Eventbrite/Liquipedia and record
-the day the top 8 was decided.
+every event so far. Barcelona's article said 8/26 (a Wednesday); the event was
+Sat 8/22–Sun 8/23. Vancouver's said 6/4; the event was Fri 5/29–Sun 5/31.
+Always corroborate with Eventbrite/Liquipedia and record the day the top 8 was
+decided.
 
 ---
 
@@ -183,8 +184,13 @@ If there's no single base printing it fails loudly.
 `WebFetch` on a `playriftbound.com/news/.../xxx-top-decks/` URL extracts the
 full top 8 reliably. **It is an automated read, so verify before trusting:**
 
-- Every deck should total **39 maindeck + 12 runes + 3 battlefields**. All 24
-  decks entered so far hit this exactly; a deck that doesn't is a red flag.
+- Every deck should total **39 maindeck + 12 runes + 3 battlefields**, plus the
+  legend and champion, which the article lists above the maindeck rather than
+  in it — so `cards[]` sums to **56**. All 32 decks entered so far hit this
+  exactly; a deck that doesn't is a red flag.
+- **Don't trust a `WebFetch` summary on a contested line.** Asked twice about
+  BaoBaoaz's duplicate `Irelia, Fervent`, it answered both ways. Open the page
+  with the browser tool and read the raw text when a count looks off.
 - Every legend should resolve to a card with `card_type = 'Legend'`.
 - Check unpriced counts are 0.
 - Corroborate the winner/runner-up against independent coverage.
@@ -199,11 +205,20 @@ event file's `_note`.
 
 | Event | Date | Decks | Notable |
 |---|---|---|---|
+| RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Two Diana and two Irelia in the top 8; Alanzq's Diana won |
 | RQ Utrecht | 2026-06-14 | 8 | Both finalists had the two *cheapest* decks ($282 / $236); priciest deck came 8th |
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn at $146 beat runner-up Kennen at $456 |
 
-1,180 cards, ~1,122 daily prices, 24 decks, 100% price coverage on all decks.
+1,180 cards, ~1,122 daily prices, 32 decks, 100% price coverage on all decks.
+
+**A champion can also appear as a maindeck line.** Vancouver's 8th place
+(BaoBaoaz) lists `Irelia, Fervent` as its champion *and* again inside the main
+deck — 2 copies total, which is legal. The article's "Main Deck" section is
+always 39 cards and excludes the legend and champion, so the expected `cards[]`
+total is 39 + 1 legend + 1 champion + 3 battlefields + 12 runes = **56**. Check
+that, not 39, when validating a new event. The importer sums duplicate entries
+within a section, so either spelling works.
 
 An earlier **NRG Milwaukee** event was entered by hand from user-pasted lists,
 then deleted at the user's request. Its JSON is recoverable from git history if
