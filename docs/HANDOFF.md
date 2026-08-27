@@ -354,3 +354,59 @@ to ~410k/year, for identical output. `d1 info` already showed 682k rows read in
 24h at near-zero traffic against a 5M/day free-tier limit, and that number grows
 with history depth whether or not traffic does. Do not remove the `WHERE`
 clause. Widening the window is safe; deleting it is not.
+
+---
+
+## 11. Card images — in progress
+
+**Nothing needs scraping or matching.** Riftscribe publishes image URLs with the
+catalogue and the ingest already stores them. All 1,180 cards have all three.
+
+| Rendition | Size | Dimensions | Column | Serve it? |
+|---|---|---|---|---|
+| small webp | 25 KB | 300×418 | `image_thumb_url` | yes — list rows |
+| medium webp | 71 KB | 600×837 | *(not stored)* | — |
+| large webp | 97 KB | 744×1039 | `image_large_url` | yes — previews, card pages |
+| original png | **778 KB** | — | `image_url` | **never** |
+
+Sizes measured 2026-08-27 on OGN-001. The original PNG is 8× heavier than
+`large` at no useful gain *and* is the only rendition without a long cache
+(`max-age=14400` against `immutable, 1yr` on the webps). Its URL is kept as the
+canonical source; no page should ever serve it.
+
+### Done
+
+- `image_large_url` column added to `cards`, live and in `db/schema.sql`
+- `ingest/src/catalog.js` stores it; backfilled 1,180/1,180
+
+### Blocked, and it needs the user
+
+Hosting is meant to be **R2**, but `wrangler r2 bucket create` fails with
+`Please enable R2 through the Cloudflare Dashboard [code: 10042]`. R2 is a
+one-time account activation and requires a card on file even for the free tier,
+so it cannot be done from here. Once enabled:
+
+```bash
+npx wrangler r2 bucket create scoutpost-images
+```
+
+Then add an `IMAGES` R2 binding to `ingest/wrangler.toml` and `wrangler.toml`,
+mirror `small` + `large` in the daily ingest (~145 MB for the full catalogue,
+against a 10 GB free tier, and R2 has **no egress fee**), and serve through the
+site Worker with an immutable cache header. Skip the original PNGs — 918 MB for
+a rendition nothing serves.
+
+### Why not just hotlink cdn.riftscribe.gg
+
+It would work today; the URLs are in D1. But Riftscribe is a free one-person
+project, and hotlinking moves this site's image bandwidth onto their bill. It is
+also one Cloudflare toggle away from breaking every image here without warning.
+**If hotlinking is ever chosen, ask Riftscribe first.**
+
+### Two UX decisions still open
+
+- A hover preview needs JavaScript. `public/styles.css` opens by promising "no
+  JS required to read anything on the page" and the site currently ships none.
+  Build it as progressive enhancement, and do not quietly drop that promise.
+- Deck pages carry 39+ rows. Thumbs on every row means ~1 MB per page even
+  lazy-loaded. Decide row-thumbs vs hover-only before building.

@@ -37,7 +37,10 @@ CREATE TABLE IF NOT EXISTS cards (
   faction           TEXT,
   public_code       TEXT,                  -- 'OGN-001/298' as printed
   image_url         TEXT,                  -- full-size art
-  image_thumb_url   TEXT,                  -- small/medium thumb for lists
+  image_thumb_url   TEXT,                  -- small webp (~25KB) for list rows
+  image_large_url   TEXT,                  -- large webp (~97KB) for previews
+                                           -- image_url is the 778KB original PNG:
+                                           -- canonical source, never served
   tcgcsv_product_id INTEGER,               -- NULL until matched to a TCGplayer product
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

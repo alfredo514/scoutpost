@@ -30,10 +30,19 @@ function normaliseCard(raw) {
   const number = Number(raw.collector_number);
   if (!Number.isInteger(number) || number < 0) return null;
 
-  const thumb =
-    raw.image_thumb && typeof raw.image_thumb === 'object'
-      ? raw.image_thumb.small ?? raw.image_thumb.medium ?? null
-      : null;
+  // Riftscribe publishes four renditions. Sizes measured 2026-08-27 on
+  // OGN-001: small 25 KB (300x418), medium 71 KB (600x837), large 97 KB
+  // (744x1039), original PNG 778 KB.
+  //
+  // We keep small for list rows and large for previews and card pages. Large
+  // is 8x lighter than the original at ample resolution, and the webp
+  // renditions are served `immutable` with a one-year cache while the original
+  // gets only max-age=14400 — so the PNG is both the heaviest and the worst
+  // cached. Its URL is still recorded in image_url as the canonical source,
+  // but no page should ever serve it.
+  const thumbs = raw.image_thumb && typeof raw.image_thumb === 'object' ? raw.image_thumb : {};
+  const thumb = thumbs.small ?? thumbs.medium ?? null;
+  const large = thumbs.large ?? thumbs.medium ?? thumbs.small ?? null;
 
   // Riftscribe exposes finish through variant/rarity naming rather than a field.
   const rarity = typeof raw.rarity === 'string' ? raw.rarity : null;
@@ -52,6 +61,7 @@ function normaliseCard(raw) {
     public_code: nonEmptyString(raw.public_code) ? String(raw.public_code) : null,
     image_url: nonEmptyString(raw.image) ? String(raw.image) : null,
     image_thumb_url: nonEmptyString(thumb) ? String(thumb) : null,
+    image_large_url: nonEmptyString(large) ? String(large) : null,
   };
 }
 
@@ -136,8 +146,9 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
       .prepare(
         `INSERT INTO cards
            (id, name, set_id, collector_number, variant, rarity, finish,
-            card_type, faction, public_code, image_url, image_thumb_url, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            card_type, faction, public_code, image_url, image_thumb_url,
+            image_large_url, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
          ON CONFLICT(id) DO UPDATE SET
            name             = excluded.name,
            set_id           = excluded.set_id,
@@ -150,6 +161,7 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
            public_code      = excluded.public_code,
            image_url        = excluded.image_url,
            image_thumb_url  = excluded.image_thumb_url,
+           image_large_url  = excluded.image_large_url,
            updated_at       = datetime('now')`,
       )
       .bind(
@@ -165,6 +177,7 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
         c.public_code,
         c.image_url,
         c.image_thumb_url,
+        c.image_large_url,
       ),
   );
 
