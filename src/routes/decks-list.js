@@ -1,12 +1,51 @@
-import { adSlot, esc, formatDate, htmlResponse, layout, money, url } from '../lib/render.js';
-import { latestPriceDate, listDecks } from '../lib/queries.js';
+import {
+  adSlot,
+  eraFilterBar,
+  esc,
+  formatDate,
+  hiddenByFilterNote,
+  htmlResponse,
+  layout,
+  money,
+  url,
+} from '../lib/render.js';
+import { deckEraCounts, latestPriceDate, listDecks, setEras } from '../lib/queries.js';
 import { legendMark } from '../lib/images.js';
 
-export async function onRequestGet({ env }) {
-  const [decks, priceDate] = await Promise.all([
-    listDecks(env.DB, { limit: 300 }),
+/**
+ * Default view: the current set only, matching /events.
+ *
+ * A decklist is only meaningful against the format it was played in. The cost
+ * is that everything older is hidden until asked for — see the note under the
+ * table, which says how many and links to the full list.
+ */
+const DEFAULT_ERA = 'newest';
+
+export async function onRequestGet({ request, env }) {
+  const params = new URL(request.url).searchParams;
+  const eras = await setEras(env.DB);
+  const newest = eras[0]?.id ?? '';
+
+  const requested = params.get('set');
+  // No parameter means the default; 'all' is an explicit choice, not the
+  // absence of one.
+  const selected =
+    requested === 'all'
+      ? ''
+      : requested && eras.some((e) => e.id === requested)
+        ? requested
+        : DEFAULT_ERA === 'newest'
+          ? newest
+          : '';
+
+  const [decks, counts, priceDate] = await Promise.all([
+    listDecks(env.DB, { limit: 300, era: selected }),
+    deckEraCounts(env.DB),
     latestPriceDate(env.DB),
   ]);
+
+  const totalDecks = Object.values(counts).reduce((a, n) => a + n, 0);
+  const activeEra = eras.find((e) => e.id === selected);
 
   const rows = decks.length
     ? decks
@@ -35,16 +74,30 @@ export async function onRequestGet({ env }) {
           </tr>`,
         )
         .join('')
-    : `<tr><td colspan="6" class="empty-cell">No decks imported yet.</td></tr>`;
+    : `<tr><td colspan="6" class="empty-cell">
+         No decks played under ${esc(activeEra?.name ?? 'this set')} yet.
+       </td></tr>`;
 
   const body = `
 <div class="page-head">
   <h1>Decks</h1>
   <p class="lede">
     Every imported top-8 decklist with a live build cost.
+    ${activeEra ? `Showing decks played under <b>${esc(activeEra.name)}</b>.` : ''}
     ${priceDate ? `Prices as of ${esc(formatDate(priceDate))}.` : ''}
   </p>
 </div>
+
+${/* Above the ad slot, so the reserved leaderboard height is never displaced
+     and nothing below it shifts when the filter changes. */ ''}
+${eraFilterBar(env, {
+  path: '/decks',
+  eras,
+  counts,
+  selected,
+  allLabel: 'All decks',
+  total: totalDecks,
+})}
 
 ${adSlot('leaderboard')}
 
@@ -62,7 +115,14 @@ ${adSlot('leaderboard')}
     </thead>
     <tbody>${rows}</tbody>
   </table>
-</div>`;
+</div>
+
+${hiddenByFilterNote(env, {
+  path: '/decks',
+  total: totalDecks,
+  shown: decks.length,
+  noun: 'deck',
+})}`;
 
   return htmlResponse(
     layout(env, {

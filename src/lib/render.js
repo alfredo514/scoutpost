@@ -240,3 +240,54 @@ export function notFound(env, what = 'Page') {
     { status: 404, maxAge: 60 },
   );
 }
+
+/**
+ * The set-era filter bar, shared by /events and /decks.
+ *
+ * One implementation rather than two copies, because the requirement is that
+ * the two bars look and behave identically — and two copies of markup drift the
+ * moment either page is touched.
+ *
+ * Filters are links, like every other filter on this site, so each view is a
+ * real shareable URL and none of it needs JavaScript.
+ *
+ * @param {object} opts
+ *   path      base path, e.g. '/decks'
+ *   eras      [{ id, name }] newest first, from setEras()
+ *   counts    { [eraId]: n } for the badges
+ *   selected  active era id, or '' for everything
+ *   allLabel  wording of the first pill ('All events' / 'All decks')
+ *   total     count for the first pill
+ */
+export function eraFilterBar(env, { path, eras, counts, selected, allLabel, total }) {
+  const href = (id) => url(env, `${path}${id ? `?set=${id}` : '?set=all'}`);
+
+  const pill = (id, label, count, isActive) =>
+    `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(href(id))}"${
+      isActive ? ' aria-current="true"' : ''
+    }>${esc(label)}${count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`}</a>`;
+
+  const pills = [
+    pill('', allLabel, total, !selected),
+    ...eras.map((e) => pill(e.id, e.name, counts[e.id] ?? 0, selected === e.id)),
+  ].join('');
+
+  return `<nav class="era-filter" aria-label="Filter by set">
+  <span class="filter-label">Set</span>
+  <div class="chips">${pills}</div>
+</nav>`;
+}
+
+/**
+ * The "N older … are hidden" note that sits under a filtered table.
+ * Shown only when a filter is actually hiding something.
+ */
+export function hiddenByFilterNote(env, { path, total, shown, noun }) {
+  const hidden = total - shown;
+  if (!hidden || hidden <= 0) return '';
+  return `<p class="source-note">
+      ${esc(hidden)} older ${esc(noun)}${hidden === 1 ? '' : 's'} from earlier sets
+      ${hidden === 1 ? 'is' : 'are'} hidden.
+      <a href="${esc(url(env, `${path}?set=all`))}">Show all ${esc(noun)}s</a>.
+    </p>`;
+}

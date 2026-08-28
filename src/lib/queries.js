@@ -178,13 +178,21 @@ export async function getDeckCards(db, deckId) {
   return results ?? [];
 }
 
-/** Decks across all events, most expensive first — powers /decks. */
-export async function listDecks(db, { limit = 100 } = {}) {
+/**
+ * Decks across all events — powers /decks.
+ *
+ * A deck's era is its parent event's era, so the same date-derived rule applies
+ * and no deck carries a stored set tag.
+ */
+export async function listDecks(db, { limit = 100, era = '' } = {}) {
+  const filter = era ? 'HAVING era = ?' : '';
+  const params = era ? [era, limit] : [limit];
   const { results } = await db
     .prepare(
       `WITH ${LATEST_PRICES}
        SELECT d.id, d.placement, d.player_name, d.legend,
               e.id AS event_slug, e.name AS event_name, e.date AS event_date,
+              ${EVENT_ERA} AS era,
               ${LEGEND_ART},
               ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
               SUM(dc.quantity) AS card_count
@@ -193,12 +201,25 @@ export async function listDecks(db, { limit = 100 } = {}) {
          LEFT JOIN deck_cards dc ON dc.deck_id = d.id
          LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
         GROUP BY d.id
+        ${filter}
         ORDER BY e.date DESC, d.placement ASC
         LIMIT ?`,
     )
-    .bind(limit)
+    .bind(...params)
     .all();
   return results ?? [];
+}
+
+/** How many decks sit in each era — drives the counts on the filter pills. */
+export async function deckEraCounts(db) {
+  const { results } = await db
+    .prepare(
+      `SELECT ${EVENT_ERA} AS era, COUNT(*) AS n
+         FROM decks d JOIN events e ON e.id = d.event_id
+        GROUP BY era`,
+    )
+    .all();
+  return Object.fromEntries((results ?? []).map((r) => [r.era, r.n]));
 }
 
 /** Small headline numbers for the homepage. */

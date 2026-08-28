@@ -1,7 +1,9 @@
 import {
   adSlot,
+  eraFilterBar,
   esc,
   formatDate,
+  hiddenByFilterNote,
   htmlResponse,
   layout,
   money,
@@ -43,20 +45,7 @@ export async function onRequestGet({ request, env }) {
     eventEraCounts(env.DB),
   ]);
 
-  const eraUrl = (id) => url(env, `/events${id ? `?set=${id}` : '?set=all'}`);
-
-  const pill = (id, label, count, isActive) =>
-    `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(eraUrl(id))}"${
-      isActive ? ' aria-current="true"' : ''
-    }>${esc(label)}${count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`}</a>`;
-
   const totalEvents = Object.values(counts).reduce((a, b) => a + b, 0);
-
-  const pills = [
-    pill('', 'All events', totalEvents, !selected),
-    ...eras.map((e) => pill(e.id, e.name, counts[e.id] ?? 0, selected === e.id)),
-  ].join('');
-
   const activeEra = eras.find((e) => e.id === selected);
 
   const rows = events.length
@@ -90,10 +79,14 @@ export async function onRequestGet({ request, env }) {
 
 ${/* Above the table and above the ad slot, so the reserved leaderboard height
      is untouched and nothing below it shifts when the filter changes. */ ''}
-<nav class="era-filter" aria-label="Filter events by set">
-  <span class="filter-label">Set</span>
-  <div class="chips">${pills}</div>
-</nav>
+${eraFilterBar(env, {
+  path: '/events',
+  eras,
+  counts,
+  selected,
+  allLabel: 'All events',
+  total: totalEvents,
+})}
 
 ${adSlot('leaderboard')}
 
@@ -113,16 +106,12 @@ ${adSlot('leaderboard')}
   </table>
 </div>
 
-${
-  selected && totalEvents > events.length
-    ? `<p class="source-note">
-        ${esc(totalEvents - events.length)} older event${
-          totalEvents - events.length === 1 ? '' : 's'
-        } from earlier sets ${totalEvents - events.length === 1 ? 'is' : 'are'} hidden.
-        <a href="${esc(eraUrl(''))}">Show all events</a>.
-      </p>`
-    : ''
-}`;
+${hiddenByFilterNote(env, {
+  path: '/events',
+  total: totalEvents,
+  shown: events.length,
+  noun: 'event',
+})}`;
 
   return htmlResponse(
     layout(env, {
