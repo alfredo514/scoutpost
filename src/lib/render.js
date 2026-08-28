@@ -158,9 +158,15 @@ ${robots ? `<meta name="robots" content="${esc(robots)}"/>\n` : ''}<link rel="ca
 <meta property="og:title" content="${esc(title)}"/>
 <meta property="og:description" content="${esc(description)}"/>
 <meta property="og:url" content="${esc(absoluteUrl(env, path))}"/>
-<meta name="twitter:card" content="summary"/>
+<meta property="og:image" content="${esc(absoluteUrl(env, '/og-image.png'))}"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="Scoutpost — Riftbound top 8s with the build cost attached"/>
+<meta name="twitter:card" content="summary_large_image"/>
 <meta name="theme-color" content="#08150e"/>
 <link rel="icon" href="${esc(url(env, '/favicon.svg'))}" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="${esc(url(env, '/apple-touch-icon.png'))}"/>
+<link rel="icon" type="image/png" sizes="512x512" href="${esc(url(env, '/icon-512.png'))}"/>
 <link rel="stylesheet" href="${esc(url(env, '/styles.css'))}"/>
 ${breadcrumbJsonLd(env, crumbs)}
 ${jsonLd}

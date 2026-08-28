@@ -446,3 +446,45 @@ Three details that are load-bearing:
 - The hover rule sits behind `(hover: hover)` so a touch device cannot latch a
   preview open on tap; the reveal needs a viewport of at least 900px, since
   narrower screens have nowhere to put it.
+
+---
+
+## 12. Icons and the social preview
+
+Source artwork: `Gemini_Generated_Image_67rmz667rmz667rm.jpg` in the user's
+Downloads (not in the repo — it is the original, keep a copy somewhere safe).
+
+```bash
+node scripts/make-icons.mjs <source-image>
+```
+
+Regenerates all three into `public/`, then `npx wrangler deploy`:
+
+| File | Size | Used for |
+|---|---|---|
+| `apple-touch-icon.png` | 180×180 | iOS home screen |
+| `icon-512.png` | 512×512 | Android / PWA / high-res |
+| `og-image.png` | 1200×630 | link previews in Slack, Discord, social |
+
+`favicon.svg` is **not** generated — it stays the hand-drawn SVG, because a
+vector reads far better at 16px than any downscaled raster and costs 1.6 KB.
+
+Two things in that script are worth knowing before editing it:
+
+**The crop is found by locating the neon glow, not by background subtraction.**
+The obvious approach fails on this artwork: its field carries a vignette,
+brighter left (G≈49) than right (G≈28), and that spread is *larger* than the
+difference between the field and the icon's own dark panel. Any threshold loose
+enough to catch the panel swallows the whole vignette — the first attempt
+returned the full 896px height. The saturated green has no such ambiguity, so
+the script finds the glow and pads outward by 12%, which lands the left edge at
+x=239 against a panel edge measured by hand at ~240.
+
+**The OG text is not measured.** There is no font metrics available, so line
+lengths are eyeballed with slack left over; an overflowing line is silently
+clipped, which happened on the first pass. **Look at `public/og-image.png`
+after changing any of that copy.**
+
+PNGs are written with a 256-colour palette. The artwork is flat vector colour,
+so this is visually free and saves ~78% — `icon-512` goes 478 KB → 107 KB. If
+the source ever becomes photographic, check for banding by eye.
