@@ -173,6 +173,14 @@ ${/* The tab icon is the artwork, at the sizes it survives. It is declared
 <link rel="icon" type="image/png" sizes="96x96" href="${esc(url(env, '/favicon-96.png'))}"/>
 <link rel="apple-touch-icon" href="${esc(url(env, '/apple-touch-icon.png'))}"/>
 <link rel="icon" type="image/png" sizes="512x512" href="${esc(url(env, '/icon-512.png'))}"/>
+${/* Two families, three roles. Chakra Petch is angular and technical for
+     headings; IBM Plex Sans and Mono carry body text and every number. The mono
+     is not decorative — prices are the point of this site and tabular figures
+     keep columns of them aligned. preconnect because the fonts sit on a second
+     origin, and display=swap so text is readable before they arrive. */ ''}
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"/>
 <link rel="stylesheet" href="${esc(url(env, '/styles.css'))}"/>
 ${breadcrumbJsonLd(env, crumbs)}
 ${jsonLd}

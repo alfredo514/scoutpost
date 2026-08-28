@@ -514,3 +514,42 @@ after changing any of that copy.**
 PNGs are written with a 256-colour palette. The artwork is flat vector colour,
 so this is visually free and saves ~78% — `icon-512` goes 478 KB → 107 KB. If
 the source ever becomes photographic, check for banding by eye.
+
+---
+
+## 13. The visual language
+
+**A scouting instrument, not a dashboard.** The site reports on a competitive
+format and prices it, so the design language is measurement.
+
+| Role | Face | Used for |
+|---|---|---|
+| Display | Chakra Petch 700 | h1, section headings, the wordmark |
+| Body | IBM Plex Sans | everything else |
+| **Numbers** | IBM Plex Mono, tabular | **every price, code, count and label** |
+
+The mono is the load-bearing decision. Prices are what this site is for, and
+setting them in tabular mono makes columns align digit-for-digit and read as
+measurements. It is the single change that stopped the site looking generic —
+before this, every `font-family` in the stylesheet was the system stack.
+
+Other deliberate choices:
+
+- **`--radius: 3px`**, down from 10px. Soft corners read as a template; near
+  square reads as a panel on a device. `--radius-lg` exists for the few places
+  something should feel like a card.
+- **`--snap: 90ms cubic-bezier(.2,.8,.2,1)`** on every transition. Snappy means
+  short and decisive, not absent.
+- **Grain** — one inline SVG turbulence on `body::after` at 4% opacity. No
+  request, no image decode, `pointer-events: none`.
+- **A lime tick** before each section heading, and an accent edge on the
+  headline cost card.
+
+Three webfonts are loaded with `display=swap` and real fallback stacks. This
+**reverses** an earlier decision recorded in the stylesheet header ("no
+webfonts, system stack renders instantly"). That was a defensible performance
+call, but the system stack was precisely what made the site look like every
+other dark dashboard. If page weight ever matters more than identity, dropping
+the `<link>` in `render.js` degrades cleanly to the fallback stacks.
+
+**Still no JavaScript anywhere**, card enlargements included. Keep it that way.

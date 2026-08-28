@@ -1,8 +1,17 @@
 /* Scoutpost — design system
  *
- * Goals: fast, clean, mobile-first, dense where density helps and airy where it
- * doesn't. No webfonts (system stack renders instantly), no framework, no JS
- * required to read anything on the page.
+ * A scouting instrument, not a dashboard. The site reports on a competitive
+ * format and prices it, so the visual language is measurement: technical type,
+ * numbers set as readouts, near-square geometry, faint grain.
+ *
+ * Goals: fast, mobile-first, dense where density helps and airy where it
+ * doesn't. No framework and **no JavaScript** — nothing on any page requires it,
+ * including the card enlargements, which are pure CSS. Keep it that way.
+ *
+ * Three webfonts are loaded (Chakra Petch, IBM Plex Sans, IBM Plex Mono) with
+ * display=swap and real fallback stacks, so the page reads before they land.
+ * An earlier version of this file claimed no webfonts; that changed when the
+ * system stack proved to be what made the site look generic.
  */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,14 +43,28 @@
   /* Glow. Sized so it reads on a dark ground without smearing text. */
   --glow-accent: 0 0 12px rgba(var(--accent-rgb), .45);
 
-  --radius:    10px;
-  --radius-sm: 6px;
+  /* Instrument geometry: nearly square. Soft 10px corners read as a generic
+   * dashboard; 3px reads as a panel on a device. One larger radius is kept for
+   * the few places something should feel like a card rather than a readout. */
+  --radius:    3px;
+  --radius-sm: 2px;
+  --radius-lg: 10px;
   --wrap:      1120px;
 
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter,
-          "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          "Liberation Mono", monospace;
+  /* Three roles, two families. Display is angular and technical; body is a
+   * humanist technical face that holds up small; mono carries every number,
+   * because prices are what this site is for and tabular figures keep columns
+   * of them aligned. Real fallbacks — the page must read before fonts land. */
+  --display: "Chakra Petch", "Segoe UI Semibold", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+          Consolas, "Liberation Mono", monospace;
+
+  /* Motion. Snappy means short and decisive, not absent: 90ms with a sharp
+   * curve reads as responsive, where 160ms linear reads as sludge. */
+  --snap: 90ms cubic-bezier(.2, .8, .2, 1);
+  --snap-slow: 150ms cubic-bezier(.2, .8, .2, 1);
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -63,6 +86,33 @@ body {
 
 a { color: inherit; }
 
+/* ───────────────────────── Instrument type ─────────────────────────
+ * Every number here is a price, and prices are the whole reason the site
+ * exists. Setting them in mono with tabular figures makes columns line up digit
+ * for digit and makes them read as measurements rather than prose — which is
+ * the single change that stops this looking like a generic dashboard.
+ *
+ * Placed early on purpose: these are single-class selectors, so anything more
+ * specific later still wins, and nothing else in the file sets font-family on
+ * these elements. */
+
+.num, .cost, .qty, .as-of, .card-code, .place,
+.summary b, .stat-row dd, .legend-panel-meta,
+.event-card .date, .event-card .spread b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The words around the numbers: small, spaced, uppercase — panel legends
+ * rather than sentences. */
+.summary .label, .stat-row dt, .event-card .spread .label,
+.data-table thead th, .tag, .eyebrow, .legend-panel-title,
+.data-table .section-row td {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -75,7 +125,7 @@ a { color: inherit; }
   position: absolute; left: 50%; top: -60px; transform: translateX(-50%);
   background: var(--accent); color: var(--ink); font-weight: 700;
   padding: .6rem 1.1rem; border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  z-index: 100; transition: top .15s;
+  z-index: 100; transition: top var(--snap);
 }
 .skip:focus { top: 0; }
 
@@ -93,8 +143,9 @@ a { color: inherit; }
 }
 .brand {
   display: inline-flex; align-items: center; gap: .55rem;
-  text-decoration: none; font-weight: 700; letter-spacing: -.01em;
-  font-size: 1.06rem; margin-right: auto;
+  text-decoration: none; margin-right: auto;
+  font-family: var(--display); font-weight: 700;
+  font-size: 1.12rem; letter-spacing: .02em; text-transform: uppercase;
 }
 /* The shroom mark — the same artwork the browser tab uses, so the header and
  * the tab never show two different logos. The 96px source is deliberate: it is
@@ -115,7 +166,7 @@ a { color: inherit; }
 .site-nav a {
   text-decoration: none; color: var(--text-mid); font-size: .92rem;
   font-weight: 600; padding: .4rem .7rem; border-radius: var(--radius-sm);
-  transition: color .15s, background .15s;
+  transition: color var(--snap), background var(--snap);
 }
 .site-nav a:hover { color: var(--text); background: var(--surface-2); }
 .site-nav a.active { color: var(--accent); background: rgba(var(--accent-rgb),.1); }
@@ -135,8 +186,10 @@ section + section { margin-top: 2.6rem; }
 
 .page-head { margin-bottom: 1.5rem; }
 .page-head h1, .hero h1 {
-  font-size: clamp(1.7rem, 4.2vw, 2.5rem);
-  line-height: 1.15; letter-spacing: -.02em; font-weight: 750;
+  font-family: var(--display);
+  font-size: clamp(1.75rem, 4.2vw, 2.6rem);
+  line-height: 1.08; letter-spacing: -.005em; font-weight: 700;
+  text-wrap: balance;
 }
 .hero { padding: 1rem 0 .5rem; max-width: 46rem; }
 .hero h1 { font-size: clamp(1.9rem, 5vw, 3rem); }
@@ -153,7 +206,7 @@ section + section { margin-top: 2.6rem; }
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--line); text-decoration: none;
   font-weight: 650; font-size: .93rem;
-  transition: background .15s, border-color .15s, transform .12s;
+  transition: background var(--snap), border-color var(--snap), transform var(--snap);
 }
 .btn:hover { background: #1a3524; border-color: #2a5138; transform: translateY(-1px); }
 .btn-primary {
@@ -166,7 +219,10 @@ section + section { margin-top: 2.6rem; }
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;
 }
-.section-head h2, .about h2 { font-size: 1.22rem; letter-spacing: -.01em; font-weight: 700; }
+.section-head h2, .about h2 {
+  font-family: var(--display); font-size: 1.16rem; font-weight: 700;
+  letter-spacing: .01em; text-transform: uppercase;
+}
 .more { color: var(--accent); text-decoration: none; font-size: .9rem; font-weight: 600; }
 .more:hover { text-decoration: underline; }
 .as-of { color: var(--text-dim); font-size: .82rem; font-variant-numeric: tabular-nums; }
@@ -217,7 +273,11 @@ section + section { margin-top: 2.6rem; }
 }
 .summary .label { color: var(--text-dim); font-size: .73rem; text-transform: uppercase; letter-spacing: .08em; }
 .summary b { font-size: 1.3rem; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
-.summary.big b { color: var(--accent); font-size: 1.75rem; text-shadow: var(--glow-accent); }
+.summary.big b {
+  color: var(--accent); font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 600; letter-spacing: -.02em;
+  text-shadow: var(--glow-accent);
+}
 
 .spread-story {
   margin-top: 1rem; padding: .9rem 1.1rem;
@@ -237,7 +297,7 @@ section + section { margin-top: 2.6rem; }
   display: block; text-decoration: none;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 1.1rem;
-  transition: border-color .16s, transform .16s, background .16s;
+  transition: border-color var(--snap-slow), transform var(--snap-slow), background var(--snap-slow);
 }
 .event-card:hover {
   border-color: rgba(var(--accent-rgb), .42); transform: translateY(-2px);
@@ -270,7 +330,7 @@ section + section { margin-top: 2.6rem; }
 }
 .data-table td { padding: .75rem .9rem; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
 .data-table tbody tr:last-child td { border-bottom: none; }
-.data-table tbody tr { transition: background .12s; }
+.data-table tbody tr { transition: background var(--snap); }
 .data-table tbody tr:hover { background: rgba(255,255,255,.022); }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .data-table tfoot td {
@@ -450,7 +510,7 @@ section + section { margin-top: 2.6rem; }
   padding: .85rem 1rem; text-decoration: none;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
-  transition: border-color .16s, background .16s, transform .16s;
+  transition: border-color var(--snap-slow), background var(--snap-slow), transform var(--snap-slow);
 }
 .jump-list a:hover {
   border-color: rgba(var(--accent-rgb), .45); background: var(--surface-2);
@@ -551,3 +611,41 @@ section + section { margin-top: 2.6rem; }
 .legend-cell { margin-top: .3rem; gap: .5rem; }
 .legend-cell .card-thumb { width: 34px; height: 48px; }
 .legend-cell .legend { display: block; margin-top: 0; }
+
+/* ───────────────────────── Signature ─────────────────────────
+ * The two touches that make the page feel like a device rather than a
+ * template. Both are decoration, so both sit behind prefers-reduced-motion and
+ * neither carries meaning a reader would miss. */
+
+/* Film grain. A single inline SVG turbulence, so it costs no request and no
+ * image decode. Kept very faint — enough to break up flat fills, not enough to
+ * read as texture. */
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;  /* must never intercept a click */
+  z-index: 200;
+  opacity: .04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A lime tick before every section heading — the smallest possible mark that
+ * says "instrument panel" rather than "article". */
+.section-head h2::before,
+.about h2::before {
+  content: "";
+  display: inline-block; vertical-align: .1em;
+  width: 3px; height: .82em; margin-right: .55rem;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), .55);
+}
+
+/* The headline cost is the one number people come for. Give its card an accent
+ * edge so the eye lands there before anything else on the page. */
+.summary.big {
+  border-color: rgba(var(--accent-rgb), .35);
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 24px rgba(var(--accent-rgb), .07);
+}
+
+/* Rows should answer the pointer immediately. */
+.data-table tbody tr:hover { background: rgba(var(--accent-rgb), .05); }
