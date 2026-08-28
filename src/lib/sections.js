@@ -38,12 +38,8 @@ export const SECTIONS = [
   {
     path: '/rankings',
     label: 'Rankings',
-    status: 'planned',
-    summary: 'The most expensive cards in the game, and the ones moving fastest.',
-    detail: [
-      'Leaderboards for the priciest cards overall and by set, the signature and showcase printings, and the biggest movers week over week.',
-      'This is the same price history the card pages will use, sliced the other way — so it lands alongside them.',
-    ],
+    status: 'live',
+    summary: 'The most valuable cards in the game, what moved, and where the value sits by set.',
   },
   {
     path: '/box-ev',

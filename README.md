@@ -61,6 +61,7 @@ src/lib/sections.js      the nav/router/sitemap registry — one entry per secti
 src/lib/queries.js       all SQL, including live deck-cost calculation
 src/routes/*.js          one module per page
 src/routes/planned.js    the page shown for a section that is not built yet
+src/lib/images.js        R2 image paths, and the shared card cell with its hover art
 ingest/                  daily cron Worker (catalogue + prices)
 route-worker/            serves the site at /scoutpost on the existing domain
 public/                  static assets (styles.css, favicon)
@@ -265,11 +266,12 @@ absolute URL is hardcoded anywhere.
 - [x] D1 schema, card + price ingestion on a daily cron
 - [x] Events, decks, JSON deck entry
 - [x] Event pages: top 8 with build costs and the cost spread
-- [ ] Card pages with price history
-- [ ] Ranking pages (most expensive overall / by set / signatures, biggest movers)
+- [x] Card browser and per-card pages
+- [x] Rankings: most valuable cards, biggest movers, value by set
+- [ ] Price history charts (waiting on snapshot depth, not on code)
 - [ ] Box EV calculator
 
-The three unbuilt sections are **already in the nav and already routed**. Every
+The unbuilt sections are **already in the nav and already routed**. Every
 section is declared once in `src/lib/sections.js`, which the header nav, the
 footer, the router and the sitemap all read. A `status: 'planned'` section
 renders a real page describing what's coming, carries `noindex`, and is kept out

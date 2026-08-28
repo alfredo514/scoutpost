@@ -958,3 +958,41 @@ body::after {
 }
 
 .card-price-row { margin-top: 1.4rem; }
+
+/* ───────────────────────── Rankings boards ─────────────────────────
+ * A leaderboard, so the rank itself is set as a readout: mono, tabular, dim
+ * enough that it orders the rows without competing with the prices, which are
+ * what the reader came for.
+ *
+ * Risers and fallers sit side by side because they are one measurement read in
+ * two directions, and comparing them is the point. Below 900px there is no room
+ * for that, so they stack.
+ */
+
+.rank {
+  display: inline-block; min-width: 1.8ch;
+  color: var(--text-dim); font-weight: 600;
+}
+
+/* A price movement. Colour carries the direction, but the sign is always
+ * written out as well — colour alone is not a distinction every reader can
+ * make, and this is the one number on the page whose direction is its meaning. */
+.move { font-weight: 700; }
+.move-up { color: var(--accent); }
+.move-down { color: var(--neg); }
+
+.boards { display: grid; gap: 1.6rem; }
+.board { min-width: 0; }  /* lets each table shrink rather than overflow the grid */
+.board .section-head { margin-bottom: .7rem; }
+.board .section-head h3 {
+  font-family: var(--display); font-size: .95rem; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+
+@media (min-width: 900px) {
+  .boards { grid-template-columns: 1fr 1fr; }
+}
+
+/* /cards puts a search form between the heading and the filters; /rankings has
+ * no search, so the filter panel needs its own breathing room. */
+.page-head + .filters { margin-top: 1.3rem; }

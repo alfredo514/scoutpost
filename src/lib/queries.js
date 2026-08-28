@@ -275,7 +275,7 @@ const PRINTINGS = {
   promo: "c.variant NOT IN ('', 'a', 'star')",
 };
 
-function cardFilterSql({ type, color, set, rarity, printing, q, priced }) {
+function cardFilterParts({ type, color, set, rarity, printing, q, priced }) {
   const where = [];
   const params = [];
   if (type) {
@@ -308,6 +308,16 @@ function cardFilterSql({ type, color, set, rarity, printing, q, priced }) {
   if (priced === 'yes') where.push('p.market_price IS NOT NULL');
   if (priced === 'no') where.push('p.market_price IS NULL');
 
+  return { where, params };
+}
+
+/**
+ * The same filters as a standalone WHERE clause, for queries that have no other
+ * conditions of their own. Queries that do (the movers board carries its own)
+ * take the parts above and merge them instead.
+ */
+function cardFilterSql(filters) {
+  const { where, params } = cardFilterParts(filters);
   return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 }
 
@@ -499,6 +509,218 @@ export async function decksPlayingCard(db, cardId, { limit = 12 } = {}) {
         LIMIT ?`,
     )
     .bind(cardId, limit)
+    .all();
+  return results ?? [];
+}
+
+/* ───────────────────────────── Rankings ─────────────────────────────
+ *
+ * /rankings answers two questions /cards cannot: what the market looks like in
+ * aggregate, and what moved. Everything here reads the same price_snapshots
+ * table, but sliced across cards rather than down a decklist.
+ */
+
+/**
+ * Most valuable cards right now. Filters are the /cards ones, so a ranking is
+ * always a slice of the same catalogue and links straight back into it.
+ */
+export async function topCards(db, { limit = 25, ...filters } = {}) {
+  const { clause, params } = cardFilterSql({ ...filters, priced: 'yes' });
+  const { results } = await db
+    .prepare(
+      `WITH ${LATEST_PRICES}
+       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+              c.variant, c.rarity, c.card_type, c.faction,
+              c.image_thumb_url, c.image_large_url,
+              s.name AS set_name,
+              p.market_price, p.date AS price_date
+         FROM cards c
+         LEFT JOIN sets s ON s.id = c.set_id
+         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         ${clause}
+        ORDER BY p.market_price DESC, c.name ASC
+        LIMIT ?`,
+    )
+    .bind(...params, limit)
+    .all();
+  return results ?? [];
+}
+
+/**
+ * Aggregate market figures for whatever slice is being shown.
+ *
+ * `cards` counts everything matching the filter and `priced` only what carries
+ * a price, because the gap between the two is the honest caveat on every other
+ * number here — a catalogue total computed over 96% of the cards is not the
+ * catalogue's value, and the page says so rather than implying otherwise.
+ */
+export async function marketStats(db, filters = {}) {
+  const totals = cardFilterSql(filters);
+  const middle = cardFilterSql({ ...filters, priced: 'yes' });
+
+  const [agg, med] = await Promise.all([
+    db
+      .prepare(
+        `WITH ${LATEST_PRICES}
+         SELECT COUNT(*) AS cards,
+                SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced,
+                SUM(p.market_price) AS total,
+                MAX(p.market_price) AS top,
+                SUM(CASE WHEN p.market_price >= 50 THEN 1 ELSE 0 END) AS over50
+           FROM cards c
+           LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+           ${totals.clause}`,
+      )
+      .bind(...totals.params)
+      .first(),
+    // SQLite has no median. Rank the priced rows, then average the middle one
+    // or two — the integer division picks a single row for an odd count and the
+    // straddling pair for an even one.
+    db
+      .prepare(
+        `WITH ${LATEST_PRICES},
+         priced AS (
+           SELECT p.market_price AS px,
+                  ROW_NUMBER() OVER (ORDER BY p.market_price) AS pos,
+                  COUNT(*) OVER () AS n
+             FROM cards c
+             LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+             ${middle.clause}
+         )
+         SELECT AVG(px) AS median FROM priced WHERE pos IN ((n + 1) / 2, (n + 2) / 2)`,
+      )
+      .bind(...middle.params)
+      .first(),
+  ]);
+
+  return {
+    cards: agg?.cards ?? 0,
+    priced: agg?.priced ?? 0,
+    total: agg?.total ?? 0,
+    top: agg?.top ?? null,
+    over50: agg?.over50 ?? 0,
+    median: med?.median ?? null,
+  };
+}
+
+/**
+ * Every set, ranked by how much of the catalogue's value sits in it.
+ *
+ * The priciest card per set comes from a ROW_NUMBER partition rather than a
+ * correlated subquery. Two correlated lookups per set each re-scanned the whole
+ * catalogue: 28,762 rows read against 23,025 for this, measured on 2026-08-28
+ * for identical output. That gap widens with every set added, and D1's free
+ * tier is metered on rows read — see §10 of the handoff.
+ */
+export async function setValueTable(db) {
+  const { results } = await db
+    .prepare(
+      `WITH ${LATEST_PRICES},
+       j AS (
+         SELECT c.set_id, c.id, c.name, p.market_price AS px,
+                ROW_NUMBER() OVER (PARTITION BY c.set_id ORDER BY p.market_price DESC) AS px_rank
+           FROM cards c
+           LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+       )
+       SELECT s.id, s.name, s.release_date,
+              COUNT(j.id) AS cards,
+              SUM(CASE WHEN j.px IS NOT NULL THEN 1 ELSE 0 END) AS priced,
+              SUM(j.px) AS total,
+              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.px   END) AS top_price,
+              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.name END) AS top_name,
+              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.id   END) AS top_id
+         FROM sets s
+         JOIN j ON j.set_id = s.id
+        GROUP BY s.id
+        ORDER BY total DESC`,
+    )
+    .all();
+  return results ?? [];
+}
+
+/**
+ * How far back the movers board looks.
+ *
+ * Seven days is the target. The board reports the widest span that actually
+ * exists inside it — with a three-day-old price history that is three days, and
+ * the page prints the real dates rather than claiming a week.
+ */
+const MOVER_WINDOW_DAYS = 7;
+
+/**
+ * Cards below this price are excluded from the movers board.
+ *
+ * Not a matter of taste. TCGplayer quotes bulk cards in whole cents, so a
+ * common going $0.10 to $0.17 is a one-cent-scale wobble that arrives as +70%
+ * and buries every real move: measured over 26-28 Aug, the unfiltered top ten
+ * risers were all sub-$1 cards, while the same query above $2 returned Irelia,
+ * Rengar and Ornn — the cards actually being bought. The floor is what makes
+ * this board mean anything.
+ */
+const MOVER_FLOOR = 2;
+
+/**
+ * The two dates the movers board compares: the newest snapshot, and the oldest
+ * one still inside the window.
+ *
+ * Returns `null` when there is only one date, because a single snapshot cannot
+ * show a movement and an empty board is the truthful answer.
+ */
+export async function moverWindow(db) {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT MAX(date) FROM price_snapshots) AS to_date,
+              (SELECT MIN(date) FROM price_snapshots
+                WHERE date >= date((SELECT MAX(date) FROM price_snapshots),
+                                   '-${MOVER_WINDOW_DAYS} day')) AS from_date`,
+    )
+    .first();
+  if (!row?.to_date || !row?.from_date || row.to_date === row.from_date) return null;
+  return { from: row.from_date, to: row.to_date, floor: MOVER_FLOOR };
+}
+
+/**
+ * Biggest movers between two snapshot dates.
+ *
+ * **A card must be priced on BOTH dates.** This is the load-bearing line. The
+ * Signature printings went from unpriced to ~$952 the day the collector-number
+ * parser was fixed; a naive "latest vs earliest available" comparison reports
+ * that as the biggest rally in the game's history, when nothing moved at all —
+ * only our reading of it did. Comparing fixed endpoints and dropping anything
+ * missing from either means a data fix can never masquerade as a market event.
+ *
+ * The same reasoning is why this does NOT reuse LATEST_PRICES: that helper
+ * deliberately falls back to a card's own last known price, which is right for
+ * a deck total and wrong here, where an unchanged stale price would read as a
+ * card that held its value.
+ */
+export async function topMovers(db, { from, to, direction = 'up', limit = 8, ...filters } = {}) {
+  const { where, params } = cardFilterParts({ ...filters, priced: undefined });
+  const extra = where.length ? `AND ${where.join(' AND ')}` : '';
+  const order = direction === 'down' ? 'pct ASC' : 'pct DESC';
+
+  const { results } = await db
+    .prepare(
+      `WITH a AS (SELECT card_id, market_price AS px FROM price_snapshots
+                   WHERE date = ? AND market_price IS NOT NULL),
+            b AS (SELECT card_id, market_price AS px FROM price_snapshots
+                   WHERE date = ? AND market_price IS NOT NULL)
+       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+              c.variant, c.rarity, c.card_type, c.faction,
+              c.image_thumb_url, c.image_large_url,
+              s.name AS set_name,
+              a.px AS old_price, b.px AS new_price,
+              (b.px - a.px) AS delta,
+              (b.px - a.px) / a.px AS pct
+         FROM a
+         JOIN b ON b.card_id = a.card_id
+         JOIN cards c ON c.id = a.card_id
+         LEFT JOIN sets s ON s.id = c.set_id
+        WHERE a.px >= ${MOVER_FLOOR} AND b.px <> a.px ${extra}
+        ORDER BY ${order}, c.name ASC
+        LIMIT ?`,
+    )
+    .bind(from, to, ...params, limit)
     .all();
   return results ?? [];
 }

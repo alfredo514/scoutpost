@@ -89,6 +89,16 @@ stderr; suppressing them turns a real failure into a silently empty result.
 Output is pretty-printed JSON, so grep for `'"field":'` and `paste` the lines
 together, or parse it with node.
 
+**All platforms — `npm run dev` needs `--var BASE_PATH:/`.** In production the
+site is served at `softsauce.co/scoutpost` and `route-worker` strips that prefix
+before forwarding, so `BASE_PATH` is `/scoutpost` and every link is built with
+it. Nothing strips the prefix locally, so `wrangler dev` on its own serves a
+page whose own stylesheet, icons and links all 404 — it looks like the CSS is
+broken when it is only mis-addressed. The `dev` script now passes
+`--var BASE_PATH:/` for that reason. It affects local preview only; the
+deployed value comes from `wrangler.toml`, and the sitemap rendered locally
+will show origin-relative URLs as a result.
+
 **All platforms — interactive OAuth can't be backgrounded.** `wrangler login`
 in a background task times out before the user can click. Run it in the
 foreground with a long timeout, or have the user run it themselves.
@@ -222,18 +232,24 @@ event file's `_note`.
 
 | Event | Date | Decks | Notable |
 |---|---|---|---|
+| RQ Las Vegas | 2026-03-01 | 8 | |
+| RQ Lille | 2026-04-19 | 8 | The event that surfaced `Yi, Honed` — see §16 |
+| RQ Atlanta | 2026-04-26 | 8 | |
+| RQ Sydney | 2026-05-17 | 8 | Its article prints battlefields without quantities; every other one prints `1 Foo` |
 | RQ Vancouver | 2026-05-31 | 8 | Canada's first RQ. Winner's Diana cost roughly half the runner-up's Rengar; cheapest deck came 5th |
 | RQ Utrecht | 2026-06-14 | 8 | Both finalists brought the two *cheapest* decks; priciest deck came 8th |
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 — the only event so far where that happened |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn beat a runner-up Kennen costing ~3× as much |
 
-1,180 cards, ~1,122 daily prices, 32 decks, 100% price coverage on all decks.
+1,180 cards, ~1,158 daily prices, **8 events, 64 decks**, 100% price coverage on
+all decks. 22 cards are unpriced — promo printings with no TCGplayer
+counterpart, see §9.
 
 **Don't write dollar figures into this doc.** Prices move every day — the whole
 point of the site — so a number recorded here is wrong by tomorrow and reads
 like a bug to whoever finds the mismatch. Describe the *relationship* (which
 deck was dearer, by roughly what factor) and let the site carry the figures.
-Costs shifted 1–2% across all 32 decks during a single session on 2026-08-27
+Costs shifted 1–2% across every deck during a single session on 2026-08-27
 purely from one cron run.
 
 **A champion can also appear as a maindeck line.** Vancouver's 8th place
@@ -280,14 +296,18 @@ Not yet built (roadmap order from the original brief):
 
 - [x] **/cards browser** — every card, filterable by type and colour, priced
       and sorted by cost. Filters are query-string links, not scripts
-- [ ] **Per-card pages with price history** — `price_snapshots` holds the raw
-      daily data and nothing charts it yet. The browser above does NOT link to
-      per-card pages, because there are none: that is the remaining half
-- [ ] **Ranking pages** — most expensive overall / by set / signatures, biggest
-      movers
+- [x] **Per-card pages** — `/cards/<id>`, art beside the card's text, linked
+      from every tile. Shipped 2026-08-27; text comes from TCGplayer, see §17
+- [ ] **Price history charts** — `price_snapshots` holds the raw daily data and
+      nothing charts it yet. This is the one remaining piece of the card pages,
+      and it is **gated on history depth, not on code**: three days of snapshots
+      as of 2026-08-28. Leave it until there are weeks
+- [x] **Ranking pages** — most valuable cards, biggest movers, and where the
+      value sits by set. Shipped 2026-08-28; see §18 for the two decisions that
+      make its numbers mean anything
 - [ ] **Box EV calculator**
 
-All three are **already in the nav**, routed, and styled. `src/lib/sections.js`
+Box EV is **already in the nav**, routed, and styled. `src/lib/sections.js`
 is the single registry every consumer reads — header nav, footer, router,
 sitemap. A planned section routes to `src/routes/planned.js`, which renders a
 real page saying what's coming and linking to what works; it carries
@@ -623,8 +643,9 @@ in code.
 **The default view is the newest set only.** `/events` with no parameter shows
 Vendetta; `?set=all` is an explicit choice. A result is only meaningful against
 the format it was played in, which is the argument for it — but be aware of the
-cost, which at the time of writing is that **3 of 4 events are hidden by
-default**. A note under the table says so and links to the full list. If the
+cost, which as of 2026-08-28 is that **7 of 8 events are hidden by
+default**. The user was asked once more when `/rankings` shipped and confirmed
+the default stands. A note under the table says so and links to the full list. If the
 event count grows and that tradeoff stops paying, `DEFAULT_ERA` in
 `src/routes/events-list.js` is the single switch.
 
@@ -716,3 +737,103 @@ not skip the escape and pass the feed's HTML through.
 
 `card_text` is current state, one row per card. `price_snapshots` is history,
 one row per card per day. Do not confuse the two.
+
+---
+
+## 18. The rankings page, and two decisions that carry it
+
+`/rankings` exists to do what `/cards` structurally cannot: report **aggregates**
+(catalogue value, median card, value by set) and **movement**, which needs two
+dates and therefore needs the price history. Everything else on the page links
+back into `/cards` with the equivalent filter rather than growing a second
+paginated browser.
+
+Both boards read `price_snapshots`. Two rules keep them honest, and both were
+measured rather than guessed.
+
+### A mover must be priced on BOTH endpoint dates
+
+This is the load-bearing line in `topMovers`. The Signature printings went from
+unpriced to an average of ~$950 the day `parseCollectorNumber` learned to accept
+an asterisk (§5). A "latest versus earliest available" comparison reports that
+as the largest rally in the game's history — when nothing moved at all, only our
+reading of it did. Comparing two **fixed dates** and dropping any card missing
+from either means a data fix can never masquerade as a market event.
+
+For the same reason the movers query deliberately does **not** reuse
+`LATEST_PRICES`. That helper falls back to a card's own last known price, which
+is exactly right for a deck total and exactly wrong here: a stale price
+unchanged for a week would read as a card that held its value.
+
+### Cards under $2 are excluded from the movers board
+
+`MOVER_FLOOR` in `queries.js`. TCGplayer quotes bulk singles in whole cents, so
+a common going $0.10 → $0.17 is one cent of rounding arriving as **+70%**.
+Measured over 26–28 Aug: the unfiltered top ten risers were **all sub-$1 cards**,
+the largest a 7-cent move. The same query above $2 returned Irelia, Rengar and
+Ornn — cards people are actually buying. Without the floor this board is a
+rounding-error leaderboard. Raising the floor is safe; removing it is not.
+
+### The window is what exists, not what was asked for
+
+`MOVER_WINDOW_DAYS` is 7, but `moverWindow()` returns the widest span that
+actually exists inside it and the page **prints the real dates**. With three days
+of history it says "Aug 26 → Aug 28", not "this week". When the history is one
+day deep it returns `null` and the board says so rather than rendering zeros.
+This is the section of the site that most needs history depth: it gets better on
+its own every night, with no code change.
+
+### Signatures own the top of the board, correctly
+
+14 of the top 15 most valuable cards are Signature printings, and the 15th is
+Baron Nashor's secret rare. That is the truth about this market, so the board is
+not filtered — but a note under it points at the printing filter, because
+"priciest card I might actually open" is the other question a reader has.
+
+Note that a Signature's collector number is **above** the printed set size, and
+so is a secret rare's; `printingOf()` in `rankings.js` reads `variant`, never the
+number, which is what keeps Baron Nashor classified as Standard.
+
+### The "Value by set" board ignores the page filters
+
+Deliberately. It is a comparison *between* sets, so filtering it to one would
+leave nothing to compare. The copy under it says so.
+
+### It is the most expensive page on the site to serve — measured
+
+Rows read per uncached view, 2026-08-28, with three days of price history:
+
+| Query | Rows read |
+|---|---|
+| `marketStats` (two queries) | ~36,600 |
+| `setValueTable` | 23,025 |
+| `topCards` | ~18,300 |
+| `topMovers` ×2 | ~3,800 |
+| facets | small |
+
+**Roughly 80k rows per uncached view.** Nearly all of it is the `LATEST_PRICES`
+join, which costs ~18,300 on its own for 1,180 cards and grows with history
+depth up to the `PRICE_WINDOW_DAYS` bound (§10) — so this is the site's existing
+floor paid four times, not something the boards do wrong. `s-maxage=300` at the
+edge is what makes it affordable; the free tier allows 5M rows/day.
+
+Two things already tried and rejected, so nobody repeats them:
+
+- **Folding `marketStats` into one query** with the aggregates as scalar
+  subqueries over a shared CTE. SQLite re-evaluates the CTE per subquery:
+  **55,284 rows against ~36,600** for the two-query form. Worse, not better.
+- **Correlated subqueries for the priciest card per set**, which is how
+  `setValueTable` was first written. The window-function form replaced it.
+
+If this page ever needs to get cheaper, the lever is a materialised
+`card_latest_price` table written by the cron, not query rewriting. That is a
+real change with a real cost — a second source of truth for prices — so do not
+reach for it before the numbers say it is needed.
+
+### One shared card cell
+
+`cardMark()` moved from `deck-detail.js` into `lib/images.js` when the rankings
+tables needed the same row: thumbnail, name, printed code, CSS-only hover
+enlargement. It takes an optional `href` — rankings link the name to the card
+page, decklists do not, because there the whole row is already about that card.
+Output for a decklist is unchanged, byte for byte.

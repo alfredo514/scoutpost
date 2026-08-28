@@ -13,7 +13,7 @@
     "db:schema:local": "wrangler d1 execute scoutpost --local --file=db/schema.sql",
     "import": "node scripts/import-decks.mjs",
     "import:apply": "wrangler d1 execute scoutpost --remote --file=build/import.sql",
-    "dev": "wrangler dev --remote",
+    "dev": "wrangler dev --remote --var BASE_PATH:/",
     "deploy": "wrangler deploy",
     "deploy:ingest": "wrangler deploy --config ingest/wrangler.toml",
     "deploy:route": "wrangler deploy --config route-worker/wrangler.toml",

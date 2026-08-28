@@ -70,3 +70,55 @@ export function legendMark(env, deck, labelHtml) {
       ${zoom}
     </span>`;
 }
+
+/**
+ * One table row's card cell: thumbnail, name, printed code, and a full-size
+ * enlargement shown on hover or keyboard focus.
+ *
+ * The enlargement carries **no JavaScript**. Its art is a `background-image`
+ * on an element that is `display: none` until `:hover`/`:focus`, and browsers
+ * do not fetch a background for an unrendered element — so the ~100 KB large
+ * rendition costs nothing on page load and is fetched once, on first hover,
+ * then served from cache for a year. That is what lets a 31-row decklist carry
+ * a readable preview per row without weighing anything.
+ *
+ * The thumbnail is a real <img> with explicit dimensions and `loading="lazy"`,
+ * so rows below the fold cost nothing and none of them shift the layout.
+ *
+ * A card with no mirrored art degrades to an empty frame rather than a broken
+ * image, and the row still reads correctly.
+ *
+ * Lives here rather than in a route because decklists and the rankings boards
+ * both render it, and two copies would drift.
+ */
+export function cardMark(env, card, { href = null } = {}) {
+  const thumb = cardImageSrc(env, card, 'small');
+  const large = cardImageSrc(env, card, 'large');
+  const code = card.public_code || `${card.set_id}-${card.collector_number}`;
+
+  const art = thumb
+    ? `<img class="card-thumb" src="${esc(thumb)}" width="40" height="56"
+             loading="lazy" decoding="async" alt=""/>`
+    : '<span class="card-thumb card-thumb--empty" aria-hidden="true"></span>';
+
+  // aria-hidden: the enlargement is the same card the row already names, so a
+  // screen reader gains nothing from it.
+  const zoom = large
+    ? `<span class="card-zoom" aria-hidden="true" style="--art:url('${esc(large)}')"></span>`
+    : '';
+
+  // The rankings boards link the name to the card's own page; a decklist does
+  // not, because the whole row is already about that card in that deck.
+  const name = href
+    ? `<a class="card-name strong-link" href="${esc(href)}">${esc(card.name)}</a>`
+    : `<span class="card-name">${esc(card.name)}</span>`;
+
+  return `<span class="card-cell"${large ? ' tabindex="0"' : ''}>
+          ${art}
+          <span class="card-text">
+            ${name}
+            <span class="card-code">${esc(code)}</span>
+          </span>
+          ${zoom}
+        </span>`;
+}
