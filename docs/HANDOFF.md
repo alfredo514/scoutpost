@@ -631,3 +631,42 @@ event count grows and that tradeoff stops paying, `DEFAULT_ERA` in
 The filter sits **above** `adSlot('leaderboard')` so the reserved 90px
 leaderboard height is never displaced and nothing below it shifts when the
 filter changes.
+
+---
+
+## 16. Validating an event before import
+
+```bash
+node scripts/check-event.mjs data/events/<slug>.json
+```
+
+Checks the arithmetic every Riftbound tournament deck must satisfy:
+
+**1 legend + 1 champion + 39 maindeck + 3 battlefields + 12 runes = 56**
+
+Card types come from the live Riftscribe catalogue, **not a hardcoded list of
+battlefield names** — the first version kept such a list and reported all eight
+decks of a new event as broken purely because that event used battlefields the
+list had never seen. It also mirrors the importer's name quirks (champion prefix
+dropped, ` - Starter` suffix), or it reports false failures for names that
+import perfectly.
+
+Run it before `import-decks.mjs`. The importer validates that names *resolve*;
+this validates that the *shape* is right, which is what catches a line dropped
+or doubled while transcribing an article.
+
+### Article structure varies — do not rely on one marker
+
+Across four articles the top-8 section was headed three different ways:
+`Top 8`, `Top 8 Decks`, and `TOP EIGHT`. One article had no section header at
+all. Locate the block by the run of `Overall Ranking: #8 … #1` at the end of the
+page instead. Sydney's article also prints battlefields **without quantities**
+where every other article prints `1 Foo`.
+
+### Catalogue naming is inconsistent for the same champion
+
+`Master Yi, Tempered` and `Master Yi, Unstoppable` exist under those names, but
+the Proving Grounds printing of the same champion is catalogued as **`Yi,
+Honed`** — no "Master". Lille's article says "Master Yi, Honed", which resolves
+to nothing. The importer caught it and refused to write, which is the system
+working; the fix is to use the catalogue's name.
