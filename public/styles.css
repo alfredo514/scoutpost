@@ -545,3 +545,9 @@ section + section { margin-top: 2.6rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Legend art in a list of decks. Slightly tighter than a decklist row: these
+ * sit under a player or deck name rather than beside a card name. */
+.legend-cell { margin-top: .3rem; gap: .5rem; }
+.legend-cell .card-thumb { width: 34px; height: 48px; }
+.legend-cell .legend { display: block; margin-top: 0; }

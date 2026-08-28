@@ -38,6 +38,24 @@ const LATEST_PRICES = `
      WHERE date >= date((SELECT MAX(date) FROM price_snapshots), '-${PRICE_WINDOW_DAYS} day')
   )`;
 
+/**
+ * The Legend's art, for a deck listed among others.
+ *
+ * A Riftbound deck has exactly one Legend and players recognise a deck by it on
+ * sight, so a list of decks reads far faster with the art than with the name
+ * alone. Correlated subqueries rather than a join: the surrounding queries
+ * aggregate over deck_cards with GROUP BY, and joining a second copy of that
+ * table would multiply the rows those aggregates are summing.
+ *
+ * `idx_deck_cards_deck` serves the lookup, and there are only ever 8 decks on
+ * an event page.
+ */
+const LEGEND_ART = `
+  (SELECT cl.image_thumb_url FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
+    WHERE dcl.deck_id = d.id AND cl.card_type = 'Legend' LIMIT 1) AS legend_thumb_url,
+  (SELECT cl.image_large_url FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
+    WHERE dcl.deck_id = d.id AND cl.card_type = 'Legend' LIMIT 1) AS legend_large_url`;
+
 export async function latestPriceDate(db) {
   const row = await db.prepare('SELECT MAX(date) AS d FROM price_snapshots').first();
   return row?.d ?? null;
@@ -84,6 +102,7 @@ export async function getEventDecks(db, eventId) {
     .prepare(
       `WITH ${LATEST_PRICES}
        SELECT d.id, d.placement, d.player_name, d.legend, d.notes,
+              ${LEGEND_ART},
               ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
               ROUND(SUM(CASE WHEN dc.section = 'main'
                              THEN COALESCE(p.market_price, 0) * dc.quantity ELSE 0 END), 2) AS main_cost,
@@ -148,6 +167,7 @@ export async function listDecks(db, { limit = 100 } = {}) {
       `WITH ${LATEST_PRICES}
        SELECT d.id, d.placement, d.player_name, d.legend,
               e.id AS event_slug, e.name AS event_name, e.date AS event_date,
+              ${LEGEND_ART},
               ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
               SUM(dc.quantity) AS card_count
          FROM decks d

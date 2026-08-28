@@ -395,6 +395,15 @@ The nightly `all` run mirrors one batch only when something is pending, so it
 catches up over several nights after a new set. That is deliberate: the
 catalogue and price jobs must never lose subrequest budget to images.
 
+### Verifying images in the browser pane
+
+`loading="lazy"` images sit at `complete: false` forever when the Browser pane
+is not displayed — no paint means no intersection observation, so the fetch
+never fires. This looks exactly like a broken image and cost time twice. Tell
+the two apart by checking `naturalWidth === 0 && complete` (a real failure) vs
+`!complete` (never requested), or load the same URL through `new Image()`,
+which ignores lazy loading entirely.
+
 ### The subrequest cap is the binding constraint — measured, not assumed
 
 Each card costs **two `fetch()` calls**, and Workers allow **50 subrequests per

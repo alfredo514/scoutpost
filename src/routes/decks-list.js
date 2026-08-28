@@ -1,5 +1,6 @@
 import { adSlot, esc, formatDate, htmlResponse, layout, money, url } from '../lib/render.js';
 import { latestPriceDate, listDecks } from '../lib/queries.js';
+import { legendMark } from '../lib/images.js';
 
 export async function onRequestGet({ env }) {
   const [decks, priceDate] = await Promise.all([
@@ -12,10 +13,17 @@ export async function onRequestGet({ env }) {
         .map(
           (d) => `<tr>
             <td data-label="Deck">
-              <a class="strong-link" href="${esc(url(env, `/decks/${d.id}`))}">${esc(
-                d.legend || d.player_name || 'Decklist',
-              )}</a>
-              ${d.player_name && d.legend ? `<span class="legend">${esc(d.player_name)}</span>` : ''}
+              ${legendMark(
+                env,
+                d,
+                `<a class="strong-link" href="${esc(url(env, `/decks/${d.id}`))}">${esc(
+                  d.legend || d.player_name || 'Decklist',
+                )}</a>${
+                  d.player_name && d.legend
+                    ? `<span class="legend">${esc(d.player_name)}</span>`
+                    : ''
+                }`,
+              )}
             </td>
             <td data-label="Event">
               <a href="${esc(url(env, `/events/${d.event_slug}`))}">${esc(d.event_name)}</a>

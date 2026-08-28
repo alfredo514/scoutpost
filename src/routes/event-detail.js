@@ -11,6 +11,7 @@ import {
   url,
 } from '../lib/render.js';
 import { getEvent, getEventDecks, latestPriceDate } from '../lib/queries.js';
+import { legendMark } from '../lib/images.js';
 
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
@@ -54,7 +55,7 @@ export async function onRequestGet({ env, params }) {
               <a class="strong-link" href="${esc(url(env, `/decks/${d.id}`))}">${esc(
                 d.player_name || 'Unknown player',
               )}</a>
-              ${d.legend ? `<span class="legend">${esc(d.legend)}</span>` : ''}
+              ${legendMark(env, d)}
             </td>
             <td data-label="Cards" class="num">${esc(d.card_count ?? 0)}</td>
             <td data-label="Build cost" class="num">
