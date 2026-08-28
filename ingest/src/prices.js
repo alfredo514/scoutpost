@@ -58,17 +58,29 @@ function results(body, label) {
 
 /**
  * Parse a printed collector number into a comparable pair.
- *   '021/166'  → { number: 21,  variant: ''  }
- *   '021a/166' → { number: 21,  variant: 'a' }
- *   'SP3/006'  → null  (promo/special numbering; reported, never guessed at)
+ *   '021/166'   → { number: 21,  variant: ''     }
+ *   '021a/166'  → { number: 21,  variant: 'a'    }
+ *   '223x/221'  → { number: 223, variant: 'star' }   (x here is an asterisk;
+ *                  it cannot be written literally without ending this comment)
+ *   'SP3/006'   → null  (promo/special numbering; reported, never guessed at)
+ *
+ * The asterisk is the Signature printing. TCGplayer marks it in the number and
+ * calls the product "… (Signature)"; Riftscribe records the same card with
+ * `variant: 'star'`. Mapping '*' to 'star' is what makes the two agree.
+ *
+ * This was missed originally: the regex accepted only digits and an optional
+ * letter, so every Signature fell through to the unparseable bucket and 36
+ * cards — the most expensive printings in the game — carried no price at all.
+ * A collector number ABOVE the set size is normal for these; do not "fix" that.
  */
 export function parseCollectorNumber(value) {
   if (typeof value !== 'string') return null;
-  const m = /^(\d+)([a-z]?)\s*\/\s*\d+$/i.exec(value.trim());
+  const m = /^(\d+)([a-z]|\*)?\s*\/\s*\d+$/i.exec(value.trim());
   if (!m) return null;
   const number = Number.parseInt(m[1], 10);
   if (!Number.isInteger(number)) return null;
-  return { number, variant: (m[2] || '').toLowerCase() };
+  const mark = m[2] || '';
+  return { number, variant: mark === '*' ? 'star' : mark.toLowerCase() };
 }
 
 function extended(product, field) {

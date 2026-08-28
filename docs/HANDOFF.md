@@ -124,7 +124,7 @@ collector number + variant (`021a/166` → number 21, variant `a`).
 
 ---
 
-## 5. Four bugs that were found the hard way
+## 5. Five bugs that were found the hard way
 
 These are all fixed. They are recorded because each one produced *plausible
 wrong numbers* rather than an error, which is the failure mode this project
@@ -145,6 +145,23 @@ exclude these.
 **A card can be in both maindeck and sideboard.** `deck_cards` was keyed
 `(deck_id, card_id)`, which silently merged those rows and lost a card. The key
 is now `(deck_id, card_id, section)` where section is `main` | `sideboard`.
+
+**Signature printings were silently unpriced.** TCGplayer marks them with an
+asterisk in the collector number (`227x/221`, x being an asterisk) and names the
+product "… (Signature)". Riftscribe records the same card as `variant: 'star'`.
+`parseCollectorNumber` accepted only digits plus an optional letter, so every
+Signature landed in the unparseable bucket and **36 cards carried no price at
+all** — the most valuable printings in the game, averaging **$952** against
+**$13.55** for everything else, top end **$3,474**. They read as $0 for weeks.
+
+The parser now maps the asterisk to `star`. Three things to keep in mind:
+
+- A Signature's collector number is **above** the printed set size. That is
+  normal for these and must not be "corrected".
+- An asterisk followed by a slash **ends a block comment**, which broke the file
+  the first time this was documented.
+- The first post-fix run still reported the old numbers — the deploy had not
+  propagated. Re-run before concluding a price fix failed.
 
 **Riot article dates are PUBLICATION dates, not event dates.** This has caught
 every event so far. Barcelona's article said 8/26 (a Wednesday); the event was
@@ -290,9 +307,9 @@ Smaller open items:
 - `robots.txt` lives at the domain root on the **NAS**, not in this repo. It
   still needs `Sitemap: https://softsauce.co/scoutpost/sitemap.xml` added.
 - Submit that sitemap in Google Search Console.
-- 58 of 1,180 cards are unpriced — showcase/promo printings with special
-  numbering (`SP3/006`) that have no catalogue counterpart. Documented
-  limitation, not a bug.
+- 22 of 1,180 cards are unpriced — promo printings with special numbering
+  (`SP3/006`, `R01`, `T01`) that have no TCGplayer counterpart. Documented
+  limitation, not a bug. This was 58 until the Signature fix; see §5.
 - Decks show `main_cost` / `side_cost` separately; the headline cost includes
   the sideboard. The user was offered maindeck-only and kept the combined total.
 
