@@ -40,6 +40,9 @@ function filterUrl(env, current, change) {
   const next = { ...current, ...change };
   const qs = new URLSearchParams();
   for (const key of ['type', 'color', 'set']) if (next[key]) qs.set(key, next[key]);
+  // The default sort is never written into the URL, so the canonical /cards
+  // stays clean and one view has exactly one address.
+  if (next.sort && next.sort !== 'price') qs.set('sort', next.sort);
   if (next.page && next.page > 1) qs.set('page', String(next.page));
   const query = qs.toString();
   return url(env, `/cards${query ? `?${query}` : ''}`);
@@ -74,6 +77,7 @@ function cardTile(env, c) {
       <span class="tile-art">${art}</span>
       <span class="tile-name">${esc(c.name)}</span>
       <span class="tile-meta">${esc(code)}</span>
+      <span class="tile-set">${esc(c.set_name || c.set_id)}</span>
       <span class="tile-price${c.market_price === null ? ' is-unpriced' : ''}">${
         c.market_price === null ? 'No price' : money(c.market_price)
       }</span>
@@ -83,10 +87,13 @@ function cardTile(env, c) {
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
+  const SORTS = ['price', 'set', 'name'];
+  const requestedSort = params.get('sort') || 'price';
   const current = {
     type: params.get('type') || '',
     color: params.get('color') || '',
     set: params.get('set') || '',
+    sort: SORTS.includes(requestedSort) ? requestedSort : 'price',
     page: Math.max(1, Number(params.get('page')) || 1),
   };
 
@@ -125,9 +132,30 @@ export async function onRequestGet({ request, env }) {
     ),
   ].join('');
 
+  const setChips = [
+    filterButton(env, current, { set: '' }, 'All', undefined, !current.set),
+    ...facets.sets.map((s) =>
+      filterButton(env, current, { set: s.v }, s.label, s.n, current.set === s.v),
+    ),
+  ].join('');
+
+  // Sort keeps the current filters and resets to page 1, since page 3 of a
+  // price-sorted list is meaningless once the order changes.
+  const sortChips = [
+    ['price', 'Price'],
+    ['set', 'Set order'],
+    ['name', 'Name'],
+  ]
+    .map(([v, label]) =>
+      filterButton(env, current, { sort: v }, label, undefined, current.sort === v),
+    )
+    .join('');
+
+  const setLabel = facets.sets.find((s) => s.v === current.set)?.label;
   const active = [
     current.type ? current.type : null,
     current.color ? (COLOR_LABELS[current.color] ?? current.color) : null,
+    current.set ? (setLabel ?? current.set) : null,
   ].filter(Boolean);
 
   const pager =
@@ -151,7 +179,7 @@ export async function onRequestGet({ request, env }) {
 <div class="page-head">
   <h1>Cards</h1>
   <p class="lede">
-    Every card in the catalogue, priced daily and sorted by what it costs.
+    Every card in the catalogue, priced daily against TCGplayer.
     ${active.length ? `Showing <b>${esc(active.join(' · '))}</b>.` : ''}
   </p>
 </div>
@@ -165,8 +193,16 @@ export async function onRequestGet({ request, env }) {
     <span class="filter-label">Colour</span>
     <div class="chips">${colorChips}</div>
   </div>
+  <div class="filter-row">
+    <span class="filter-label">Set</span>
+    <div class="chips">${setChips}</div>
+  </div>
+  <div class="filter-row filter-row--sort">
+    <span class="filter-label">Sort</span>
+    <div class="chips">${sortChips}</div>
+  </div>
   ${
-    current.type || current.color
+    current.type || current.color || current.set
       ? `<div class="filter-row">
           <span class="filter-label"></span>
           <a class="chip chip-clear" href="${esc(url(env, '/cards'))}">Clear filters</a>
@@ -207,7 +243,10 @@ ${pager}`;
       ],
       // A filtered or paged view is a slice of the same catalogue, so only the
       // unfiltered first page is worth indexing.
-      robots: current.type || current.color || current.set || page > 1 ? 'noindex, follow' : '',
+      robots:
+        current.type || current.color || current.set || current.sort !== 'price' || page > 1
+          ? 'noindex, follow'
+          : '',
       body,
     }),
   );

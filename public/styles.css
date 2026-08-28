@@ -735,3 +735,14 @@ body::after {
   font-variant-numeric: tabular-nums;
 }
 .btn.is-disabled { opacity: .4; cursor: default; }
+
+/* Sort is a different kind of control from the filters above it — it changes
+ * the order, not the contents — so it gets a rule to separate the two. */
+.filter-row--sort {
+  border-top: 1px solid var(--line-soft);
+  padding-top: .55rem; margin-top: .15rem;
+}
+.tile-set {
+  font-size: .66rem; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

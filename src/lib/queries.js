@@ -239,19 +239,41 @@ function cardFilterSql({ type, color, set }) {
   return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 }
 
-export async function listCards(db, { type, color, set, limit = 60, offset = 0 } = {}) {
+/**
+ * Sort orders offered by /cards.
+ *
+ * `price` is the default because it is what this site is for. `set` is how you
+ * read a set rather than shop it: newest release first, then collector number,
+ * which is the order the cards are printed in.
+ *
+ * A fixed map rather than interpolated input — the value arrives from a query
+ * string, and ORDER BY cannot be parameterised.
+ */
+const CARD_SORTS = {
+  price: 'COALESCE(p.market_price, -1) DESC, c.name ASC',
+  set: 's.release_date DESC, c.collector_number ASC, c.variant ASC',
+  name: 'c.name ASC, s.release_date DESC',
+};
+
+export async function listCards(
+  db,
+  { type, color, set, sort = 'price', limit = 50, offset = 0 } = {},
+) {
   const { clause, params } = cardFilterSql({ type, color, set });
+  const order = CARD_SORTS[sort] ?? CARD_SORTS.price;
   const { results } = await db
     .prepare(
       `WITH ${LATEST_PRICES}
        SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
               c.rarity, c.card_type, c.faction,
               c.image_thumb_url, c.image_large_url,
+              s.name AS set_name,
               p.market_price
          FROM cards c
+         LEFT JOIN sets s ON s.id = c.set_id
          LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
          ${clause}
-        ORDER BY COALESCE(p.market_price, -1) DESC, c.name ASC
+        ORDER BY ${order}
         LIMIT ? OFFSET ?`,
     )
     .bind(...params, limit, offset)
@@ -271,9 +293,20 @@ export async function countCards(db, { type, color, set } = {}) {
 
 /** Facet counts, so a filter button can say how much is behind it. */
 export async function cardFacets(db) {
-  const [types, colors] = await Promise.all([
+  const [types, colors, sets] = await Promise.all([
     db.prepare('SELECT card_type AS v, COUNT(*) AS n FROM cards WHERE card_type IS NOT NULL GROUP BY card_type ORDER BY n DESC').all(),
     db.prepare('SELECT faction AS v, COUNT(*) AS n FROM cards WHERE faction IS NOT NULL GROUP BY faction ORDER BY n DESC').all(),
+    // Newest set first — that is the one people are looking for.
+    db.prepare(
+      `SELECT c.set_id AS v, COALESCE(s.name, c.set_id) AS label, COUNT(*) AS n
+         FROM cards c LEFT JOIN sets s ON s.id = c.set_id
+        GROUP BY c.set_id
+        ORDER BY s.release_date DESC, c.set_id ASC`,
+    ).all(),
   ]);
-  return { types: types.results ?? [], colors: colors.results ?? [] };
+  return {
+    types: types.results ?? [],
+    colors: colors.results ?? [],
+    sets: sets.results ?? [],
+  };
 }
