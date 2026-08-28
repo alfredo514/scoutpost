@@ -110,6 +110,30 @@ CREATE TABLE IF NOT EXISTS deck_cards (
 CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id, section);
 
 -- Historical record only. The displayed cost is always recomputed live.
+/* Transcribed card text.
+ *
+ * DELIBERATELY SPARSE. The Riftscribe API publishes no rules or flavor text —
+ * a card record carries only ids, names, type, faction, rarity, stats and image
+ * URLs, so the printed words exist solely as pixels in the art and have to be
+ * transcribed by hand into data/card-text/.
+ *
+ * A card with no row here renders without a text pane. Never fill this in from
+ * memory: a wrong rules line on a site people use to price decks is worse than
+ * a blank one. */
+CREATE TABLE IF NOT EXISTS card_text (
+  card_id       TEXT PRIMARY KEY REFERENCES cards(id),
+  energy_cost   INTEGER,
+  power         INTEGER,
+  subtitle      TEXT,                    -- the line under the name ("Trickster")
+  typeline      TEXT,
+  rules_text    TEXT,                    -- {3} marks an inline Energy pip
+  reminder_text TEXT,                    -- italic parenthetical on the card
+  flavor_text   TEXT,
+  artist        TEXT,
+  source        TEXT NOT NULL DEFAULT 'transcribed',
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS deck_cost_snapshots (
   deck_id    TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   date       TEXT NOT NULL,

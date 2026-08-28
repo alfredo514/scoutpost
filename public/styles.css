@@ -875,3 +875,86 @@ body::after {
   .era-filter .filter-label { width: auto; }
   .era-filter { gap: .5rem; }
 }
+
+/* ───────────────────────── Card detail ─────────────────────────
+ * Art on one side, the card's words on the other. The text pane is not
+ * decoration: rules text baked into a JPEG cannot be selected, searched,
+ * zoomed, translated or read aloud. Transcribing it beside the image is the
+ * only way any of that works.
+ *
+ * Single column below 900px, art first — on a phone the art is what identifies
+ * the card, and the text reads underneath it. */
+
+.card-detail { display: grid; gap: 1.6rem; align-items: start; }
+@media (min-width: 900px) {
+  .card-detail { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 2rem; }
+  .card-detail-art { position: sticky; top: 78px; }
+}
+.card-detail-art img {
+  display: block; width: 100%; height: auto;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .22),
+              0 18px 44px rgba(0, 0, 0, .55);
+}
+.card-detail-text { min-width: 0; }
+
+.card-subtitle {
+  font-family: var(--display); font-size: 1.15rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--accent);
+}
+.card-typeline {
+  font-family: var(--mono); font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--text-mid); margin-top: .3rem;
+}
+
+.cardstats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: .6rem; margin: 1.1rem 0;
+}
+.cardstat {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: .55rem .7rem;
+}
+.cardstat dt {
+  font-family: var(--mono); font-size: .64rem; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--text-dim);
+}
+.cardstat dd {
+  font-family: var(--mono); font-size: 1.1rem; font-weight: 600;
+  margin-top: .15rem; text-transform: capitalize;
+}
+.dd-domain { display: flex; align-items: center; gap: .35rem; font-size: .95rem; }
+.stat-domain { width: 20px; height: 20px; border-radius: 3px; }
+
+/* The rules box mirrors the card's own text panel: generous line height and a
+ * measure that keeps a long ability readable rather than sprawling. */
+.rules-box {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 1rem 1.15rem; margin: 1.1rem 0;
+}
+.rules-text { font-size: 1.02rem; line-height: 1.65; max-width: 54ch; }
+/* Reminder text is italic on the physical card; keep that. */
+.reminder-text {
+  font-style: italic; color: var(--text-mid);
+  font-size: .93rem; margin-top: .5rem; max-width: 54ch;
+}
+/* Flavor text is italic on the card too, and is flavour — set it back. */
+.flavor-text {
+  font-style: italic; color: var(--text-mid);
+  font-size: .98rem; max-width: 48ch;
+  padding-left: .9rem; border-left: 2px solid var(--line);
+}
+
+/* An Energy cost printed inline in rules text, as the card prints a numeral
+ * inside a pip. */
+.energy-pip {
+  display: inline-grid; place-items: center;
+  min-width: 1.35em; height: 1.35em; padding: 0 .25em;
+  border-radius: 999px; background: var(--accent); color: var(--ink);
+  font-family: var(--mono); font-size: .82em; font-weight: 700;
+  vertical-align: -.15em;
+}
+
+.card-price-row { margin-top: 1.4rem; }

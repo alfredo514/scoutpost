@@ -21,6 +21,7 @@ import { onRequestGet as deckDetail } from './routes/deck-detail.js';
 import { onRequestGet as sitemap } from './routes/sitemap.js';
 import { onRequestGet as cardImage } from './routes/card-image.js';
 import { onRequestGet as cards } from './routes/cards.js';
+import { onRequestGet as cardDetail } from './routes/card-detail.js';
 import { plannedHandler } from './routes/planned.js';
 import { plannedSections } from './lib/sections.js';
 
@@ -32,6 +33,7 @@ const ROUTES = [
   [/^\/decks$/, decksList],
   [/^\/decks\/([A-Za-z0-9._-]+)$/, deckDetail, 'id'],
   [/^\/cards$/, cards],
+  [/^\/cards\/([A-Za-z0-9._-]+)$/, cardDetail, 'id'],
   [/^\/sitemap\.xml$/, sitemap],
   [/^\/card-image\/([a-z]+)\/([A-Za-z0-9._-]+)$/, cardImage, 'size', 'file'],
 

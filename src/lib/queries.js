@@ -458,3 +458,47 @@ const EVENT_ERA = `
     WHERE s.release_date <= e.date
     ORDER BY s.release_date DESC, (SELECT COUNT(*) FROM cards WHERE set_id = s.id) DESC
     LIMIT 1)`;
+
+/**
+ * One card, with its transcribed text if we have any, and its current price.
+ *
+ * The LEFT JOIN on card_text is deliberate: that table is sparse because the
+ * catalogue API publishes no rules or flavor text, so most cards have no row.
+ * The page renders what exists rather than pretending.
+ */
+export async function getCard(db, id) {
+  return db
+    .prepare(
+      `WITH ${LATEST_PRICES}
+       SELECT c.*, s.name AS set_name, s.release_date,
+              t.energy_cost, t.power, t.subtitle, t.typeline,
+              t.rules_text, t.reminder_text, t.flavor_text, t.artist,
+              p.market_price, p.low_price, p.date AS price_date
+         FROM cards c
+         LEFT JOIN sets s ON s.id = c.set_id
+         LEFT JOIN card_text t ON t.card_id = c.id
+         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+        WHERE c.id = ?`,
+    )
+    .bind(id)
+    .first();
+}
+
+/** Which top-8 decks play this card, and how many copies. */
+export async function decksPlayingCard(db, cardId, { limit = 12 } = {}) {
+  const { results } = await db
+    .prepare(
+      `SELECT d.id, d.placement, d.player_name, d.legend,
+              e.id AS event_slug, e.name AS event_name, e.date AS event_date,
+              dc.quantity, dc.section
+         FROM deck_cards dc
+         JOIN decks d ON d.id = dc.deck_id
+         JOIN events e ON e.id = d.event_id
+        WHERE dc.card_id = ?
+        ORDER BY e.date DESC, d.placement ASC
+        LIMIT ?`,
+    )
+    .bind(cardId, limit)
+    .all();
+  return results ?? [];
+}
