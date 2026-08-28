@@ -466,8 +466,11 @@ Regenerates all three into `public/`, then `npx wrangler deploy`:
 | `icon-512.png` | 512×512 | Android / PWA / high-res |
 | `og-image.png` | 1200×630 | link previews in Slack, Discord, social |
 
-`favicon.svg` is **not** generated — it stays the hand-drawn SVG, because a
-vector reads far better at 16px than any downscaled raster and costs 1.6 KB.
+Plus `favicon-32/48/96.png` for the browser tab. A hand-drawn `favicon.svg`
+served this role until 2026-08-27 and was removed once the real artwork
+existed — rendering the artwork at 16/32/48 magnified side by side showed 32
+is clearly legible (16 is a smudge), and 32 is what modern browsers request.
+It is in git history if a vector mark is ever wanted again.
 
 Two things in that script are worth knowing before editing it:
 

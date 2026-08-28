@@ -9,9 +9,10 @@
  *   icon-512.png          512x512  Android / PWA / general high-res
  *   og-image.png         1200x630  link previews in Slack, Discord, social
  *
- * The small favicon stays as public/favicon.svg — a hand-drawn SVG reads far
- * better at 16px than any downscaled raster, and it is a fraction of the bytes.
- * These raster files exist for the places an SVG is not accepted.
+ * The browser-tab icons come from here too. An earlier hand-drawn SVG favicon
+ * was dropped once the real artwork existed: rendering it at 16/32/48 side by
+ * side showed 32 is perfectly legible, and 32 is what modern browsers request.
+ * One artwork everywhere beats two marks that drift apart.
  *
  * The source is expected to be the icon artwork sitting on a flat field. The
  * icon's bounds are detected rather than hardcoded, so a re-generated artwork
@@ -113,6 +114,20 @@ for (const size of [180, 512]) {
   const name = size === 180 ? 'apple-touch-icon.png' : `icon-${size}.png`;
   await square().resize(size, size, { fit: 'cover' }).png(PNG_OPTS).toFile(resolve(OUT, name));
   console.log(`  ${name}  ${size}x${size}`);
+}
+
+/* Browser-tab icons.
+ *
+ * 32 is the smallest size this artwork survives — at 16 it collapses into a
+ * green smudge, verified by rendering all three magnified side by side. That
+ * is fine in practice: 32 is what modern browsers ask for, and 16 is legacy.
+ * 48 and 96 cover HiDPI, where a browser picks the largest it can use. */
+for (const size of [32, 48, 96]) {
+  await square()
+    .resize(size, size, { fit: 'cover' })
+    .png(PNG_OPTS)
+    .toFile(resolve(OUT, `favicon-${size}.png`));
+  console.log(`  favicon-${size}.png  ${size}x${size}`);
 }
 
 /* Link preview: 1200x630 is the size Slack, Discord and the rest crop to.

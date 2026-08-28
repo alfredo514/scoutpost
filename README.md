@@ -16,7 +16,7 @@ terms. Four separate things, each doing one job:
 | Piece | What it is | What it does here |
 |---|---|---|
 | **Worker** | A serverless script that answers HTTP requests | Renders every page from the database |
-| **Static assets** | Files in `public/`, served straight from the edge | `styles.css`, `favicon.svg` |
+| **Static assets** | Files in `public/`, served straight from the edge | `styles.css`, the icon PNGs |
 | **D1** | Cloudflare's SQLite database | Cards, prices, events, decks |
 | **Cron triggers** | Scheduled Worker invocations | The daily data pull |
 

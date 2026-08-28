@@ -96,13 +96,18 @@ a { color: inherit; }
   text-decoration: none; font-weight: 700; letter-spacing: -.01em;
   font-size: 1.06rem; margin-right: auto;
 }
-/* The shroom mark. Same file as the favicon, so the two can never drift.
+/* The shroom mark — the same artwork the browser tab uses, so the header and
+ * the tab never show two different logos. The 96px source is deliberate: it is
+ * displayed at 26px, and the extra pixels are what keep it sharp on the HiDPI
+ * screens most people are reading this on.
+ *
  * The url is relative to this stylesheet, which keeps it correct under any
  * BASE_PATH without the CSS needing to know what that path is. */
 .brand-mark {
-  width: 24px; height: 24px; flex: none;
-  background: url("favicon.svg") center / contain no-repeat;
-  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), .5));
+  width: 26px; height: 26px; flex: none;
+  border-radius: 6px;
+  background: url("favicon-96.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), .45));
 }
 .brand-name { color: var(--text); }
 
