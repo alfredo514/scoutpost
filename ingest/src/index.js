@@ -25,6 +25,7 @@ import {
   collectPrices,
   fetchGroups,
   snapshotDeckCosts,
+  writeCardText,
   writePrices,
   writeProductLinks,
 } from './prices.js';
@@ -75,6 +76,8 @@ async function runPrices(env, trigger) {
     const collected = await collectPrices(env.DB, groups);
     const rowsWritten = await writePrices(env.DB, collected);
     await writeProductLinks(env.DB, collected.productLinks);
+    // Card text rides along with the same product walk — see writeCardText.
+    const textRows = await writeCardText(env.DB, collected.cardText ?? []);
     await snapshotDeckCosts(env.DB, collected.date);
 
     await recordRun(env.DB, {
@@ -83,7 +86,7 @@ async function runPrices(env, trigger) {
       status: 'ok',
       trigger,
       rowsWritten,
-      message: `${collected.unmatched} unmatched singles`,
+      message: `${collected.unmatched} unmatched singles, ${textRows} card texts`,
     });
     return { job: 'prices', status: 'ok', rowsWritten };
   } catch (e) {

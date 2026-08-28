@@ -6,13 +6,14 @@
  * zoomed by a browser, read by a screen reader, or translated. Transcribing it
  * beside the image fixes all of that.
  *
- * **The catalogue API publishes no rules or flavor text.** A card record carries
- * only ids, names, type, faction, rarity, stats and image URLs — the printed
- * words exist solely as pixels. So card_text is populated by hand from
- * data/card-text/, is deliberately sparse, and this page renders the pane only
- * for cards that have a row. A card without one shows its art and the
- * structured fields, and says plainly that the text has not been transcribed.
- * It never invents a rules line.
+ * The text comes from TCGplayer, not the card catalogue. Riftscribe publishes
+ * no rules or flavor text at all, but TCGplayer's product data carries
+ * Description, Flavor Text, Energy Cost, Power Cost, Might, Card Type, Tag and
+ * Domain — and the price job already walks those products daily, so the text
+ * arrives free and stays current. See writeCardText in ingest/src/prices.js.
+ *
+ * Coverage is 96% for rules text and 65% for flavor. A card with neither shows
+ * its art and structured fields and says so; it never invents a rules line.
  */
 
 import {
@@ -41,15 +42,16 @@ const COLOR_LABELS = {
 };
 
 /**
- * Render inline Energy symbols. Rules text stores them as `{3}`, matching how
- * the card prints a numeral inside an Energy pip, so the transcription stays
- * readable as plain text and the page can style it.
+ * Render card text safely.
+ *
+ * TCGplayer wraps reminder text and flavor text in <em>. Everything is escaped
+ * first and then exactly that one tag is allowed back — a strict whitelist, so
+ * no markup arriving from the feed can reach the page as anything else.
  */
-function withSymbols(text) {
-  return esc(text).replace(
-    /\{(\d+)\}/g,
-    (_, n) => `<span class="energy-pip" aria-label="${n} Energy">${n}</span>`,
-  );
+function cardMarkup(text) {
+  return esc(text)
+    .replace(/&lt;em&gt;/g, '<em>')
+    .replace(/&lt;\/em&gt;/g, '</em>');
 }
 
 export async function onRequestGet({ env, params }) {
@@ -58,20 +60,26 @@ export async function onRequestGet({ env, params }) {
 
   const decks = await decksPlayingCard(env.DB, card.id);
   const art = cardImageSrc(env, card, 'large');
-  const hasText = Boolean(card.rules_text || card.typeline || card.energy_cost !== null);
+  const hasText = Boolean(card.rules_text || card.type_line || card.energy_cost !== null);
+
+  // "Fizz, Trickster" prints as Fizz with TRICKSTER beneath it, so the
+  // subtitle is simply the part of the name after the comma.
+  const subtitle = card.name.includes(',') ? card.name.split(',').slice(1).join(',').trim() : '';
 
   const domainIcon = DOMAINS_WITH_ICONS.has(card.faction)
     ? `<img class="stat-domain" src="${esc(url(env, `/domain-${card.faction}.png`))}"
            width="20" height="20" alt="${esc(COLOR_LABELS[card.faction] ?? card.faction)}"/>`
     : '';
 
+  const stat = (label, value) =>
+    value === null || value === undefined
+      ? ''
+      : `<div class="cardstat"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+
   const statRow = [
-    card.energy_cost !== null && card.energy_cost !== undefined
-      ? `<div class="cardstat"><dt>Energy</dt><dd>${esc(card.energy_cost)}</dd></div>`
-      : '',
-    card.power !== null && card.power !== undefined
-      ? `<div class="cardstat"><dt>Power</dt><dd>${esc(card.power)}</dd></div>`
-      : '',
+    stat('Energy', card.energy_cost),
+    stat('Power', card.power_cost),
+    stat('Might', card.might),
     `<div class="cardstat"><dt>Domain</dt><dd class="dd-domain">${domainIcon}${esc(
       COLOR_LABELS[card.faction] ?? card.faction ?? '—',
     )}</dd></div>`,
@@ -82,26 +90,28 @@ export async function onRequestGet({ env, params }) {
 
   const textPane = hasText
     ? `
-      ${card.typeline ? `<p class="card-typeline">${esc(card.typeline)}</p>` : ''}
+      ${
+        card.type_line || card.tags
+          ? `<p class="card-typeline">${esc(
+              [card.type_line, ...(card.tags ? card.tags.split(';') : [])]
+                .filter(Boolean)
+                .join(' · '),
+            )}</p>`
+          : ''
+      }
       <dl class="cardstats">${statRow}</dl>
       ${
         card.rules_text
           ? `<div class="rules-box">
-               <p class="rules-text">${withSymbols(card.rules_text)}</p>
-               ${
-                 card.reminder_text
-                   ? `<p class="reminder-text">(${esc(card.reminder_text)})</p>`
-                   : ''
-               }
+               <p class="rules-text">${cardMarkup(card.rules_text)}</p>
              </div>`
           : ''
       }
-      ${card.flavor_text ? `<p class="flavor-text">“${esc(card.flavor_text)}”</p>` : ''}`
+      ${card.flavor_text ? `<p class="flavor-text">${cardMarkup(card.flavor_text)}</p>` : ''}`
     : `<dl class="cardstats">${statRow}</dl>
        <p class="notice">
-         The rules and flavor text for this card haven't been transcribed yet.
-         The catalogue we ingest doesn't publish them, so they're added by hand —
-         everything printed on the card is readable in the art.
+         TCGplayer publishes no printed text for this card, so there is nothing
+         to show beside the art. Everything on the card is readable in the image.
        </p>`;
 
   const playedIn = decks.length
@@ -124,7 +134,6 @@ export async function onRequestGet({ env, params }) {
     ${esc(card.public_code || `${card.set_id}-${card.collector_number}`)}
     · ${esc(card.set_name || card.set_id)}
     · ${esc(card.card_type ?? '')}
-    ${card.artist ? ` · Art by ${esc(card.artist)}` : ''}
   </p>
 </div>
 
@@ -139,7 +148,7 @@ export async function onRequestGet({ env, params }) {
   </div>
 
   <div class="card-detail-text">
-    ${card.subtitle ? `<p class="card-subtitle">${esc(card.subtitle)}</p>` : ''}
+    ${subtitle ? `<p class="card-subtitle">${esc(subtitle)}</p>` : ''}
     ${textPane}
 
     <div class="summary-cards card-price-row">

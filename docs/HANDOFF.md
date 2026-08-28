@@ -670,3 +670,49 @@ the Proving Grounds printing of the same champion is catalogued as **`Yi,
 Honed`** — no "Master". Lille's article says "Master Yi, Honed", which resolves
 to nothing. The importer caught it and refused to write, which is the system
 working; the fix is to use the catalogue's name.
+
+---
+
+## 17. Card text comes from TCGplayer, not the card catalogue
+
+**Riftscribe publishes no rules or flavor text.** Its card record carries only
+`id, public_code, name, set_id, collector_number, variant, rarity, faction,
+domains, type, orientation, stats, image, image_thumb, image_blur_data_url,
+is_banned`. Nothing else. Do not go looking for a text field there.
+
+**TCGplayer has all of it**, in `extendedData` on each product:
+
+```
+Rarity, Number, Description, Energy Cost, Power Cost,
+Might, Card Type, Tag, Domain, Flavor Text
+```
+
+The price job already walks every product daily, so `writeCardText` in
+`ingest/src/prices.js` picks the text up for free on the same pass. Nothing
+extra is fetched. Coverage on 2026-08-28: **96% rules text, 65% flavor**, over
+1,158 cards.
+
+This was nearly missed. The project read only `Number` and `Rarity` from
+`extendedData` for months, and the plan before checking was to transcribe 1,180
+cards by hand. **Check what a feed already gives you before building a pipeline
+to reproduce it.**
+
+### Three stats, not two
+
+`Energy Cost`, `Power Cost` and `Might` are distinct. On Fizz, Trickster they
+are 3 / 1 / 3. The large numeral top-right of a card is **Might**, not Power —
+Power Cost is the small domain pip under the energy circle. Reading the art
+alone gets this wrong, and it was gotten wrong here before the structured data
+settled it.
+
+### The `<em>` whitelist
+
+`Description` wraps reminder text in `<em>`, and `Flavor Text` is usually
+wrapped entirely. `cardMarkup()` in `src/routes/card-detail.js` escapes
+everything and then allows exactly that one tag back. Do not widen it, and do
+not skip the escape and pass the feed's HTML through.
+
+### Text is upserted, prices are appended
+
+`card_text` is current state, one row per card. `price_snapshots` is history,
+one row per card per day. Do not confuse the two.

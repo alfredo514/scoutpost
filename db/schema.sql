@@ -110,28 +110,29 @@ CREATE TABLE IF NOT EXISTS deck_cards (
 CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id, section);
 
 -- Historical record only. The displayed cost is always recomputed live.
-/* Transcribed card text.
+/* Printed card text, from TCGplayer.
  *
- * DELIBERATELY SPARSE. The Riftscribe API publishes no rules or flavor text —
- * a card record carries only ids, names, type, faction, rarity, stats and image
- * URLs, so the printed words exist solely as pixels in the art and have to be
- * transcribed by hand into data/card-text/.
+ * Riftscribe publishes NO rules or flavor text — its card record carries only
+ * ids, names, type, faction, rarity, stats and image URLs. TCGplayer product
+ * data carries all of it in extendedData, and the price job already walks those
+ * products daily, so the text arrives free and stays current.
  *
- * A card with no row here renders without a text pane. Never fill this in from
- * memory: a wrong rules line on a site people use to price decks is worse than
- * a blank one. */
+ * Upserted, not appended: unlike prices this is not history. Coverage measured
+ * 2026-08-28 is 96% for rules text, 65% for flavor. A card with neither is left
+ * without a row rather than given an empty one, so the page can tell "nothing
+ * published" from "not ingested yet". */
 CREATE TABLE IF NOT EXISTS card_text (
-  card_id       TEXT PRIMARY KEY REFERENCES cards(id),
-  energy_cost   INTEGER,
-  power         INTEGER,
-  subtitle      TEXT,                    -- the line under the name ("Trickster")
-  typeline      TEXT,
-  rules_text    TEXT,                    -- {3} marks an inline Energy pip
-  reminder_text TEXT,                    -- italic parenthetical on the card
-  flavor_text   TEXT,
-  artist        TEXT,
-  source        TEXT NOT NULL DEFAULT 'transcribed',
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  card_id     TEXT PRIMARY KEY REFERENCES cards(id),
+  energy_cost INTEGER,
+  power_cost  INTEGER,
+  might       INTEGER,
+  type_line   TEXT,                      -- 'Champion Unit'
+  tags        TEXT,                      -- 'Bilgewater;Yordle;Fizz'
+  domain      TEXT,
+  rules_text  TEXT,                      -- may contain <em> reminder text
+  flavor_text TEXT,                      -- usually wrapped in <em>
+  source      TEXT NOT NULL DEFAULT 'tcgplayer',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS deck_cost_snapshots (

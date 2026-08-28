@@ -471,8 +471,8 @@ export async function getCard(db, id) {
     .prepare(
       `WITH ${LATEST_PRICES}
        SELECT c.*, s.name AS set_name, s.release_date,
-              t.energy_cost, t.power, t.subtitle, t.typeline,
-              t.rules_text, t.reminder_text, t.flavor_text, t.artist,
+              t.energy_cost, t.power_cost, t.might, t.type_line,
+              t.tags, t.domain, t.rules_text, t.flavor_text,
               p.market_price, p.low_price, p.date AS price_date
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id

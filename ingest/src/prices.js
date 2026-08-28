@@ -83,6 +83,13 @@ export function parseCollectorNumber(value) {
   return { number, variant: mark === '*' ? 'star' : mark.toLowerCase() };
 }
 
+/** TCGplayer publishes numeric extendedData as strings; '' and absent are null. */
+function intOrNull(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const n = Number.parseInt(String(value), 10);
+  return Number.isInteger(n) ? n : null;
+}
+
 function extended(product, field) {
   if (!Array.isArray(product.extendedData)) return null;
   const hit = product.extendedData.find((d) => d && d.name === field);
@@ -138,6 +145,7 @@ export async function collectPrices(db, groups) {
   const productLinks = []; // [cardId, productId] pairs to backfill cards
   let unmatched = 0;
   let specialNumbering = 0;
+  const cardText = new Map();
 
   for (const group of groups) {
     let products;
@@ -193,6 +201,23 @@ export async function collectPrices(db, groups) {
         continue;
       }
 
+      // Card text first, and OUTSIDE the price guards below. A card with no
+      // price row today still has printed rules, and gating the text on a
+      // price would leave those cards blank for no reason.
+      for (const card of candidates) {
+        cardText.set(card.id, {
+          card_id: card.id,
+          energy_cost: intOrNull(extended(product, 'Energy Cost')),
+          power_cost: intOrNull(extended(product, 'Power Cost')),
+          might: intOrNull(extended(product, 'Might')),
+          type_line: extended(product, 'Card Type'),
+          tags: extended(product, 'Tag'),
+          domain: extended(product, 'Domain'),
+          rules_text: extended(product, 'Description'),
+          flavor_text: extended(product, 'Flavor Text'),
+        });
+      }
+
       const subtypes = priceByProduct.get(product.productId);
       if (!subtypes) continue; // product exists but had no price row today
 
@@ -231,7 +256,7 @@ export async function collectPrices(db, groups) {
     log(`prices: ${unmatched} single(s) had no matching catalogue card`);
   }
 
-  return { rows: [...rows.values()], date, unmatched, productLinks };
+  return { rows: [...rows.values()], date, unmatched, productLinks, cardText: [...cardText.values()] };
 }
 
 /** How many rows did the last day with data produce? Used as a sanity floor. */
@@ -338,4 +363,62 @@ export async function snapshotDeckCosts(db, date) {
   const written = await runBatched(db, stmts);
   log(`deck costs: snapshotted ${written} deck(s) for ${date}`);
   return written;
+}
+
+/**
+ * Write the printed card text.
+ *
+ * This is the ONLY source for rules and flavor text in the project. The
+ * Riftscribe catalogue publishes none — a card record there carries ids, names,
+ * type, faction, rarity, stats and image URLs and nothing more. TCGplayer's
+ * extendedData carries Description, Flavor Text, Energy Cost, Power Cost,
+ * Might, Card Type, Tag and Domain, and it comes free with the product walk the
+ * price job already performs.
+ *
+ * Coverage measured 2026-08-28 across all 1,486 singles: 94% have Description,
+ * 59% have Flavor Text. Cards below that are left without a row rather than
+ * given an empty one, so the page can tell "no text published" from "no text
+ * yet ingested".
+ *
+ * Text is upserted, not appended — unlike prices, it is not history.
+ */
+export async function writeCardText(db, rows) {
+  const usable = rows.filter((r) => r.rules_text || r.flavor_text || r.energy_cost !== null);
+  if (usable.length === 0) {
+    warn('card text: nothing usable to write');
+    return 0;
+  }
+
+  await runBatched(
+    db,
+    usable.map((r) =>
+      db
+        .prepare(
+          `INSERT INTO card_text
+             (card_id, energy_cost, power_cost, might, type_line, tags, domain,
+              rules_text, flavor_text, source, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'tcgplayer', datetime('now'))
+           ON CONFLICT(card_id) DO UPDATE SET
+             energy_cost = excluded.energy_cost, power_cost = excluded.power_cost,
+             might       = excluded.might,       type_line   = excluded.type_line,
+             tags        = excluded.tags,        domain      = excluded.domain,
+             rules_text  = excluded.rules_text,  flavor_text = excluded.flavor_text,
+             updated_at  = datetime('now')`,
+        )
+        .bind(
+          r.card_id,
+          r.energy_cost,
+          r.power_cost,
+          r.might,
+          r.type_line,
+          r.tags,
+          r.domain,
+          r.rules_text,
+          r.flavor_text,
+        ),
+    ),
+  );
+
+  log(`card text: wrote ${usable.length} card(s)`);
+  return usable.length;
 }
