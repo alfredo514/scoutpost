@@ -10,6 +10,12 @@
  * submit, so searching narrows what you are looking at rather than throwing it
  * away. Unpriced cards sort last in BOTH price directions — ascending, a card
  * with no price is unknown, not free.
+ *
+ * The two collapsibles here — advanced filters, and the sort menu — are
+ * `<details>` elements. That is native HTML with no script behind it, which is
+ * the only way to have a disclosure on this site. Their open state is decided
+ * on the server (see `advancedActive`), because a `<details>` cannot remember
+ * anything across a navigation and every filter click is a navigation.
  */
 
 import {
@@ -51,6 +57,32 @@ const PRINTING_LABELS = {
 };
 
 /**
+ * Sort orders, in the menu's own order. `price` is the default and is never
+ * written into the URL, so the canonical /cards has exactly one address.
+ */
+const SORTS = [
+  ['price', 'Price high'],
+  ['price-asc', 'Price low'],
+  ['name', 'A–Z'],
+  ['name-desc', 'Z–A'],
+  ['set', 'Newest set'],
+  ['set-asc', 'Oldest set'],
+  ['rarity', 'Rarest'],
+  ['rarity-asc', 'Commonest'],
+];
+const SORT_KEYS = SORTS.map(([v]) => v);
+const SORT_LABELS = Object.fromEntries(SORTS);
+
+/**
+ * Which filters sit behind the disclosure.
+ *
+ * Type, colour and set are how people actually browse a card pool, and they
+ * stay in the open. Rarity, printing and price are refinements — worth having,
+ * not worth three permanent rows of chrome above the grid.
+ */
+const ADVANCED_KEYS = ['rarity', 'printing', 'priced'];
+
+/**
  * Icon for a domain, cut from that domain's Rune card by
  * scripts/make-domain-icons.mjs. Colourless has no Rune card and so no icon —
  * callers fall back to the label alone rather than showing a gap.
@@ -74,8 +106,22 @@ function filterUrl(env, current, change) {
   return url(env, `/cards${query ? `?${query}` : ''}`);
 }
 
+/**
+ * One filter chip.
+ *
+ * A chip that is on gets the solid accent fill — but only when it represents a
+ * choice the reader actually made. The "All" chips are on by default on a page
+ * nobody has touched yet, and filling six of them with the brightest colour in
+ * the palette spends the accent on the absence of a filter. They get a quiet
+ * outline instead, so the green on the page always means "you narrowed this".
+ *
+ * Detected rather than declared: an "All" chip is the one whose change clears
+ * its key, so there is no flag to pass and no call site that can forget it.
+ */
 function filterButton(env, current, change, label, count, isActive, iconSrc) {
-  return `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(
+  const isDefault = Object.values(change).every((v) => v === '');
+  const state = isActive ? (isDefault ? ' is-default' : ' is-on') : '';
+  return `<a class="chip${state}" href="${esc(
     filterUrl(env, current, { ...change, page: 1 }),
   )}"${isActive ? ' aria-current="true"' : ''}>${
     iconSrc ? `<img class="chip-icon" src="${esc(iconSrc)}" width="16" height="16" alt=""/>` : ''
@@ -86,7 +132,6 @@ function filterButton(env, current, change, label, count, isActive, iconSrc) {
 
 function cardTile(env, c) {
   const thumb = cardImageSrc(env, c, 'small');
-  const large = cardImageSrc(env, c, 'large');
   const code = c.public_code || `${c.set_id}-${c.collector_number}`;
 
   const art = thumb
@@ -101,24 +146,25 @@ function cardTile(env, c) {
   return `<li class="card-tile">
       <a class="tile-open" href="${esc(open)}" aria-label="${esc(c.name)}">
       <span class="tile-art">${art}</span>
-      <span class="tile-name">${esc(c.name)}</span>
-      <span class="tile-meta">${esc(code)}</span>
-      <span class="tile-set">${
-        domainIcon(env, c.faction)
-          ? `<img class="tile-domain" src="${esc(domainIcon(env, c.faction))}" width="14" height="14"
-                 alt="${esc(c.faction)}" loading="lazy"/>`
-          : ''
-      }${esc(c.set_name || c.set_id)}</span>
-      <span class="tile-price${c.market_price === null ? ' is-unpriced' : ''}">${
-        c.market_price === null ? 'No price' : money(c.market_price)
-      }</span>
+      <span class="tile-body">
+        <span class="tile-name">${esc(c.name)}</span>
+        <span class="tile-meta">${esc(code)}</span>
+        <span class="tile-set">${
+          domainIcon(env, c.faction)
+            ? `<img class="tile-domain" src="${esc(domainIcon(env, c.faction))}" width="14" height="14"
+                   alt="${esc(c.faction)}" loading="lazy"/>`
+            : ''
+        }${esc(c.set_name || c.set_id)}</span>
+        <span class="tile-price${c.market_price === null ? ' is-unpriced' : ''}">${
+          c.market_price === null ? 'No price' : money(c.market_price)
+        }</span>
+      </span>
       </a>
     </li>`;
 }
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
-  const SORTS = ['price', 'price-asc', 'name', 'name-desc', 'set', 'set-asc', 'rarity', 'rarity-asc'];
   const requestedSort = params.get('sort') || 'price';
   const current = {
     q: (params.get('q') || '').trim().slice(0, 80),
@@ -128,7 +174,7 @@ export async function onRequestGet({ request, env }) {
     rarity: params.get('rarity') || '',
     printing: params.get('printing') || '',
     priced: params.get('priced') || '',
-    sort: SORTS.includes(requestedSort) ? requestedSort : 'price',
+    sort: SORT_KEYS.includes(requestedSort) ? requestedSort : 'price',
     page: Math.max(1, Number(params.get('page')) || 1),
   };
 
@@ -176,23 +222,6 @@ export async function onRequestGet({ request, env }) {
     ),
   ].join('');
 
-  // Sort keeps the current filters and resets to page 1, since page 3 of a
-  // price-sorted list is meaningless once the order changes.
-  const sortChips = [
-    ['price', 'Price high'],
-    ['price-asc', 'Price low'],
-    ['name', 'A-Z'],
-    ['name-desc', 'Z-A'],
-    ['set', 'Newest set'],
-    ['set-asc', 'Oldest set'],
-    ['rarity', 'Rarest'],
-    ['rarity-asc', 'Commonest'],
-  ]
-    .map(([v, label]) =>
-      filterButton(env, current, { sort: v }, label, undefined, current.sort === v),
-    )
-    .join('');
-
   const rarityChips = [
     filterButton(env, current, { rarity: '' }, 'All', undefined, !current.rarity),
     ...facets.rarities.map((r) =>
@@ -227,6 +256,11 @@ export async function onRequestGet({ request, env }) {
     current.priced === 'no' ? 'unpriced' : current.priced === 'yes' ? 'priced' : null,
   ].filter(Boolean);
 
+  // The disclosure opens itself whenever something inside it is doing work.
+  // Without this, narrowing by rarity would collapse the panel on the very
+  // navigation that applied it, hiding the control the reader just used.
+  const advancedActive = ADVANCED_KEYS.filter((k) => current[k]).length;
+
   const pager =
     pages > 1
       ? `<nav class="pager" aria-label="Pagination">
@@ -243,6 +277,27 @@ export async function onRequestGet({ request, env }) {
           }
         </nav>`
       : '';
+
+  // Sort belongs with the results, not with the filters: it reorders what you
+  // have rather than changing what you have. Sitting opposite the count, it is
+  // also one control instead of a row of eight.
+  const sortMenu = `<details class="sortmenu">
+      ${/* The summary itself stays a plain block and all the layout lives on an
+           inner span. Setting `display: flex` directly on a <summary> has broken
+           the toggle in shipped browsers, and a disclosure that will not open is
+           not a thing to be clever about. */ ''}
+      <summary><span class="sortmenu-trigger">Sort<span class="sortmenu-current">${esc(
+        SORT_LABELS[current.sort],
+      )}</span></span></summary>
+      <div class="sortmenu-panel">
+        ${SORTS.map(
+          ([v, label]) =>
+            `<a class="sortmenu-item${v === current.sort ? ' is-on' : ''}" href="${esc(
+              filterUrl(env, current, { sort: v, page: 1 }),
+            )}"${v === current.sort ? ' aria-current="true"' : ''}>${esc(label)}</a>`,
+        ).join('')}
+      </div>
+    </details>`;
 
   const body = `
 <div class="page-head">
@@ -286,22 +341,35 @@ ${/* A GET form, so searching produces a real URL and needs no JavaScript. The
     <span class="filter-label">Set</span>
     <div class="chips">${setChips}</div>
   </div>
-  <div class="filter-row">
-    <span class="filter-label">Rarity</span>
-    <div class="chips">${rarityChips}</div>
-  </div>
-  <div class="filter-row">
-    <span class="filter-label">Printing</span>
-    <div class="chips">${printingChips}</div>
-  </div>
-  <div class="filter-row">
-    <span class="filter-label">Price</span>
-    <div class="chips">${pricedChips}</div>
-  </div>
-  <div class="filter-row filter-row--sort">
-    <span class="filter-label">Sort</span>
-    <div class="chips">${sortChips}</div>
-  </div>
+
+  ${/* Native <details> — a disclosure with no script behind it. */ ''}
+  <details class="filters-more"${advancedActive ? ' open' : ''}>
+    <summary>
+      <span class="filters-more-trigger">
+        <span class="filters-more-label">Advanced filters</span>
+        ${
+          advancedActive
+            ? `<span class="chip-count">${esc(advancedActive)} on</span>`
+            : '<span class="filters-more-hint">rarity, printing, price</span>'
+        }
+      </span>
+    </summary>
+    <div class="filters-more-body">
+      <div class="filter-row">
+        <span class="filter-label">Rarity</span>
+        <div class="chips">${rarityChips}</div>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Printing</span>
+        <div class="chips">${printingChips}</div>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Price</span>
+        <div class="chips">${pricedChips}</div>
+      </div>
+    </div>
+  </details>
+
   ${
     active.length
       ? `<div class="filter-row">
@@ -312,9 +380,12 @@ ${/* A GET form, so searching produces a real URL and needs no JavaScript. The
   }
 </div>
 
-<div class="section-head">
+<div class="section-head section-head--results">
   <h2>${esc(total.toLocaleString('en-US'))} card${total === 1 ? '' : 's'}</h2>
-  ${priceDate ? `<span class="as-of">Prices ${esc(priceDate)}</span>` : ''}
+  <div class="results-tools">
+    ${priceDate ? `<span class="as-of">Prices ${esc(priceDate)}</span>` : ''}
+    ${sortMenu}
+  </div>
 </div>
 
 ${adSlot('leaderboard')}

@@ -837,3 +837,59 @@ tables needed the same row: thumbnail, name, printed code, CSS-only hover
 enlargement. It takes an optional `href` — rankings link the name to the card
 page, decklists do not, because there the whole row is already about that card.
 Output for a decklist is unchanged, byte for byte.
+
+---
+
+## 19. The card browser's two disclosures
+
+`/cards` had seven rows of filters plus a sort row above the grid. Three
+changes on 2026-08-28 gave the grid back about 155px above the fold, and none of
+them added a line of JavaScript.
+
+### Both disclosures are `<details>`, and their open state is decided server-side
+
+Advanced filters (rarity, printing, price) and the sort menu are native
+`<details>` elements. That is the only disclosure available on a site with no
+script, and it is genuinely enough.
+
+The catch is that a `<details>` cannot remember anything across a navigation,
+and on this site **every filter click is a navigation**. Left alone, opening
+Advanced filters and clicking a rarity would collapse the panel on the very
+request that applied the filter — hiding the control the reader just used, and
+looking exactly like a bug. So the server writes the `open` attribute whenever
+one of `ADVANCED_KEYS` is set, and the summary carries an "N on" badge. Check
+that logic before changing which filters live inside.
+
+### Never put `display: flex` on a `<summary>`
+
+Layout goes on an inner span (`.filters-more-trigger`, `.sortmenu-trigger`) and
+the `<summary>` stays `display: block; width: max-content`. Setting a flex or
+inline-flex display directly on a `<summary>` has broken the toggle in shipped
+browsers, and a disclosure that will not open is not a thing to be clever
+about. `width: max-content` keeps the click target matched to what is drawn,
+since a block summary would otherwise be clickable across the full row.
+
+Both were written this way from the start here — but note that **neither could
+be click-tested from the agent browser**: with the Browser pane undisplayed,
+synthetic clicks produce no default action at all, so even a plain nav link does
+not navigate. Verify a disclosure by setting `.open` from the console and
+checking `checkVisibility()`, or open the page by hand. `getBoundingClientRect`
+is the wrong probe: a closed `<details>` still reports a box for its contents.
+
+### The accent means "you narrowed this"
+
+`.chip.is-on` fills with lime. That was also being applied to the six "All"
+chips, which are on before anyone has touched the page — so a fresh `/cards`
+lit six chips in the brightest colour in the palette to say that no filter was
+applied, leaving nothing for an actual selection to say. The default state is
+now `.chip.is-default`, a quiet outline.
+
+`filterButton()` **detects** the default rather than taking a flag: an "All"
+chip is the one whose change clears its key, so no call site can forget it.
+
+### Sort moved out of the filters
+
+It reorders what you have rather than changing what you have, so it sits
+opposite the result count as a single control instead of a row of eight chips.
+The panel is a list of real links, so every sort order is still a shareable URL
+and the default sort still renders as a bare `/cards`.

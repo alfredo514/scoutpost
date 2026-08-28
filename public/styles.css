@@ -698,6 +698,7 @@ body::after {
 }
 .card-tile {
   display: flex; flex-direction: column; gap: .1rem;
+  /* .tile-body carries the text spacing; see the card browser section below. */
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: .5rem;
   transition: border-color var(--snap), transform var(--snap), background var(--snap);
@@ -736,12 +737,6 @@ body::after {
 }
 .btn.is-disabled { opacity: .4; cursor: default; }
 
-/* Sort is a different kind of control from the filters above it — it changes
- * the order, not the contents — so it gets a rule to separate the two. */
-.filter-row--sort {
-  border-top: 1px solid var(--line-soft);
-  padding-top: .55rem; margin-top: .15rem;
-}
 .tile-set {
   font-size: .66rem; color: var(--text-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -996,3 +991,135 @@ body::after {
 /* /cards puts a search form between the heading and the filters; /rankings has
  * no search, so the filter panel needs its own breathing room. */
 .page-head + .filters { margin-top: 1.3rem; }
+
+/* ─────────────────── Card browser: filters, sort, tiles ───────────────────
+ *
+ * Three changes that are about the reader's eye rather than about features.
+ */
+
+/* A chip that is on is filled with the brightest colour in the palette. That
+ * is right for a filter someone chose, and wrong for the six "All" chips that
+ * are on before anyone has touched the page — spending the accent on the
+ * absence of a filter leaves nothing to say "you narrowed this". The default
+ * state gets a quiet outline instead. Detected server-side in filterButton(),
+ * so no call site can forget it. */
+.chip.is-default {
+  background: var(--surface-2);
+  border-color: #2a5138;
+  color: var(--text-mid);
+  box-shadow: none;
+}
+.chip.is-default:hover { color: var(--text); }
+
+/* Advanced filters, behind a native <details>. Rarity, printing and price are
+ * refinements: worth having, not worth three permanent rows above the grid.
+ * The server sets the open attribute whenever one of them is doing work, because a
+ * <details> cannot survive the navigation that a filter click causes. */
+.filters-more {
+  border-top: 1px solid var(--line-soft);
+  padding-top: .55rem; margin-top: .15rem;
+}
+/* The <summary> stays a plain block and every bit of layout lives on the inner
+ * .filters-more-trigger. Setting display:flex directly on a <summary> has
+ * broken the toggle in shipped browsers, and a disclosure that will not open is
+ * not a thing to be clever about. width:max-content keeps the clickable area
+ * matched to what is drawn. */
+.filters-more > summary {
+  display: block; width: max-content;
+  cursor: pointer; list-style: none;
+  padding: .15rem 0;
+}
+.filters-more > summary::-webkit-details-marker { display: none; }
+.filters-more-trigger {
+  display: inline-flex; align-items: baseline; gap: .5rem;
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
+  transition: color var(--snap);
+}
+.filters-more > summary:hover .filters-more-trigger { color: var(--text-mid); }
+.filters-more > summary:focus-visible .filters-more-trigger {
+  outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius-sm);
+}
+/* The marker is drawn rather than inherited, so it can rotate and so it sits
+ * on the text baseline at this size. */
+.filters-more .filters-more-label::before {
+  content: "▸"; display: inline-block; margin-right: .45rem;
+  transition: transform var(--snap);
+}
+.filters-more[open] .filters-more-label::before { transform: rotate(90deg); }
+.filters-more-hint { text-transform: none; letter-spacing: .02em; opacity: .7; }
+.filters-more-body {
+  display: flex; flex-direction: column; gap: .55rem;
+  padding-top: .55rem;
+}
+
+/* Sort sits opposite the result count, because it reorders what you have
+ * rather than changing what you have — a different kind of control from the
+ * filters, and one control instead of a row of eight. Also a <details>: the
+ * panel is a list of real links, so each sort order stays a shareable URL. */
+.section-head--results { align-items: center; }
+.results-tools { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+
+.sortmenu { position: relative; }
+/* Same reason as the filter disclosure above: the summary is a plain block and
+ * the button is the span inside it. */
+.sortmenu > summary {
+  display: block; width: max-content;
+  cursor: pointer; list-style: none;
+}
+.sortmenu > summary::-webkit-details-marker { display: none; }
+.sortmenu-trigger {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .32rem .65rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-mid);
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em;
+  transition: color var(--snap), border-color var(--snap);
+}
+.sortmenu > summary:hover .sortmenu-trigger { color: var(--text); border-color: #2a5138; }
+.sortmenu > summary:focus-visible .sortmenu-trigger {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+.sortmenu-trigger::after {
+  content: "▾"; color: var(--text-dim); transition: transform var(--snap);
+}
+.sortmenu[open] .sortmenu-trigger::after { transform: rotate(180deg); }
+.sortmenu-current {
+  color: var(--accent); text-transform: none; letter-spacing: .02em;
+  font-family: var(--sans); font-size: .8rem; font-weight: 600;
+}
+
+.sortmenu-panel {
+  position: absolute; z-index: 60; right: 0; top: calc(100% + .35rem);
+  min-width: 11rem;
+  display: flex; flex-direction: column;
+  padding: .3rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+}
+.sortmenu-item {
+  padding: .38rem .55rem; border-radius: var(--radius-sm);
+  color: var(--text-mid); text-decoration: none;
+  font-size: .85rem; font-weight: 600;
+  transition: color var(--snap), background var(--snap);
+}
+.sortmenu-item:hover { background: var(--surface-2); color: var(--text); }
+.sortmenu-item.is-on { color: var(--accent); }
+
+/* On a narrow screen there is no room beside the count, and an absolutely
+ * positioned panel would hang off the edge. The menu drops into the flow. */
+@media (max-width: 560px) {
+  .sortmenu { width: 100%; }
+  .sortmenu > summary { width: 100%; }
+  .sortmenu-trigger { width: 100%; justify-content: space-between; }
+  .sortmenu-panel { position: static; min-width: 0; box-shadow: none; margin-top: .35rem; }
+}
+
+/* Tile text was set at a 1.6px gap, which ran name, code, set and price
+ * together into one block. Each line is a different kind of fact, so each gets
+ * room to read as one. */
+.tile-body { display: flex; flex-direction: column; gap: .22rem; padding: .1rem .1rem 0; }
+.tile-art { margin-bottom: .55rem; }
+.tile-price { margin-top: .18rem; }
