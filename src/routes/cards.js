@@ -6,9 +6,10 @@
  * with JavaScript disabled — which keeps the site's no-JS rule intact and is
  * also simply the better behaviour for a browse page.
  *
- * Cards are ordered by price descending because that is this site's angle: the
- * first question anyone brings to a card list is which ones are expensive.
- * Unpriced cards sort last rather than appearing to be free.
+ * Search is a plain GET form. Hidden inputs carry the active filters through a
+ * submit, so searching narrows what you are looking at rather than throwing it
+ * away. Unpriced cards sort last in BOTH price directions — ascending, a card
+ * with no price is unknown, not free.
  */
 
 import {
@@ -19,7 +20,13 @@ import {
   money,
   url,
 } from '../lib/render.js';
-import { cardFacets, countCards, latestPriceDate, listCards } from '../lib/queries.js';
+import {
+  cardFacets,
+  countCards,
+  latestPriceDate,
+  listCards,
+  printingFacets,
+} from '../lib/queries.js';
 import { cardImageSrc } from '../lib/images.js';
 
 const PER_PAGE = 50;
@@ -35,11 +42,20 @@ const COLOR_LABELS = {
   colorless: 'Colourless',
 };
 
+/** Printing groups, named the way players talk about them. */
+const PRINTING_LABELS = {
+  standard: 'Standard',
+  showcase: 'Showcase',
+  signature: 'Signature',
+  promo: 'Promo',
+};
+
 /** Build a /cards URL carrying the current filters, with one of them changed. */
 function filterUrl(env, current, change) {
   const next = { ...current, ...change };
   const qs = new URLSearchParams();
-  for (const key of ['type', 'color', 'set']) if (next[key]) qs.set(key, next[key]);
+  for (const key of ['q', 'type', 'color', 'set', 'rarity', 'printing', 'priced'])
+    if (next[key]) qs.set(key, next[key]);
   // The default sort is never written into the URL, so the canonical /cards
   // stays clean and one view has exactly one address.
   if (next.sort && next.sort !== 'price') qs.set('sort', next.sort);
@@ -87,18 +103,23 @@ function cardTile(env, c) {
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
-  const SORTS = ['price', 'set', 'name'];
+  const SORTS = ['price', 'price-asc', 'name', 'name-desc', 'set', 'set-asc', 'rarity', 'rarity-asc'];
   const requestedSort = params.get('sort') || 'price';
   const current = {
+    q: (params.get('q') || '').trim().slice(0, 80),
     type: params.get('type') || '',
     color: params.get('color') || '',
     set: params.get('set') || '',
+    rarity: params.get('rarity') || '',
+    printing: params.get('printing') || '',
+    priced: params.get('priced') || '',
     sort: SORTS.includes(requestedSort) ? requestedSort : 'price',
     page: Math.max(1, Number(params.get('page')) || 1),
   };
 
-  const [facets, total, priceDate] = await Promise.all([
+  const [facets, printings, total, priceDate] = await Promise.all([
     cardFacets(env.DB),
+    printingFacets(env.DB),
     countCards(env.DB, current),
     latestPriceDate(env.DB),
   ]);
@@ -142,20 +163,52 @@ export async function onRequestGet({ request, env }) {
   // Sort keeps the current filters and resets to page 1, since page 3 of a
   // price-sorted list is meaningless once the order changes.
   const sortChips = [
-    ['price', 'Price'],
-    ['set', 'Set order'],
-    ['name', 'Name'],
+    ['price', 'Price high'],
+    ['price-asc', 'Price low'],
+    ['name', 'A-Z'],
+    ['name-desc', 'Z-A'],
+    ['set', 'Newest set'],
+    ['set-asc', 'Oldest set'],
+    ['rarity', 'Rarest'],
+    ['rarity-asc', 'Commonest'],
   ]
     .map(([v, label]) =>
       filterButton(env, current, { sort: v }, label, undefined, current.sort === v),
     )
     .join('');
 
+  const rarityChips = [
+    filterButton(env, current, { rarity: '' }, 'All', undefined, !current.rarity),
+    ...facets.rarities.map((r) =>
+      filterButton(env, current, { rarity: r.v }, r.v, r.n, current.rarity === r.v),
+    ),
+  ].join('');
+
+  const printingChips = [
+    filterButton(env, current, { printing: '' }, 'All', undefined, !current.printing),
+    ...printings.map((pr) =>
+      filterButton(
+        env, current, { printing: pr.v },
+        PRINTING_LABELS[pr.v] ?? pr.v, pr.n, current.printing === pr.v,
+      ),
+    ),
+  ].join('');
+
+  const pricedChips = [
+    filterButton(env, current, { priced: '' }, 'All', undefined, !current.priced),
+    filterButton(env, current, { priced: 'yes' }, 'Priced', undefined, current.priced === 'yes'),
+    filterButton(env, current, { priced: 'no' }, 'Unpriced', undefined, current.priced === 'no'),
+  ].join('');
+
   const setLabel = facets.sets.find((s) => s.v === current.set)?.label;
   const active = [
-    current.type ? current.type : null,
+    current.q ? '“' + current.q + '”' : null,
+    current.type || null,
     current.color ? (COLOR_LABELS[current.color] ?? current.color) : null,
     current.set ? (setLabel ?? current.set) : null,
+    current.rarity || null,
+    current.printing ? (PRINTING_LABELS[current.printing] ?? current.printing) : null,
+    current.priced === 'no' ? 'unpriced' : current.priced === 'yes' ? 'priced' : null,
   ].filter(Boolean);
 
   const pager =
@@ -184,6 +237,26 @@ export async function onRequestGet({ request, env }) {
   </p>
 </div>
 
+${/* A GET form, so searching produces a real URL and needs no JavaScript. The
+     hidden inputs carry the current filters through, otherwise submitting a
+     search would silently throw them away. */ ''}
+<form class="search" method="get" action="${esc(url(env, '/cards'))}" role="search">
+  <label class="sr-only" for="card-search">Search cards</label>
+  <input id="card-search" class="search-input" type="search" name="q"
+         value="${esc(current.q)}" placeholder="Search by name or code — Baron Nashor, UNL-147"
+         autocomplete="off" spellcheck="false"/>
+  ${['type', 'color', 'set', 'rarity', 'printing', 'priced', 'sort']
+    .filter((k) => current[k] && !(k === 'sort' && current[k] === 'price'))
+    .map((k) => `<input type="hidden" name="${k}" value="${esc(current[k])}"/>`)
+    .join('')}
+  <button class="btn btn-primary" type="submit">Search</button>
+  ${
+    current.q
+      ? `<a class="chip chip-clear" href="${esc(filterUrl(env, current, { q: '', page: 1 }))}">Clear search</a>`
+      : ''
+  }
+</form>
+
 <div class="filters">
   <div class="filter-row">
     <span class="filter-label">Type</span>
@@ -197,15 +270,27 @@ export async function onRequestGet({ request, env }) {
     <span class="filter-label">Set</span>
     <div class="chips">${setChips}</div>
   </div>
+  <div class="filter-row">
+    <span class="filter-label">Rarity</span>
+    <div class="chips">${rarityChips}</div>
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Printing</span>
+    <div class="chips">${printingChips}</div>
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Price</span>
+    <div class="chips">${pricedChips}</div>
+  </div>
   <div class="filter-row filter-row--sort">
     <span class="filter-label">Sort</span>
     <div class="chips">${sortChips}</div>
   </div>
   ${
-    current.type || current.color || current.set
+    active.length
       ? `<div class="filter-row">
           <span class="filter-label"></span>
-          <a class="chip chip-clear" href="${esc(url(env, '/cards'))}">Clear filters</a>
+          <a class="chip chip-clear" href="${esc(url(env, '/cards'))}">Reset everything</a>
         </div>`
       : ''
   }
@@ -244,9 +329,7 @@ ${pager}`;
       // A filtered or paged view is a slice of the same catalogue, so only the
       // unfiltered first page is worth indexing.
       robots:
-        current.type || current.color || current.set || current.sort !== 'price' || page > 1
-          ? 'noindex, follow'
-          : '',
+        active.length || current.sort !== 'price' || page > 1 ? 'noindex, follow' : '',
       body,
     }),
   );

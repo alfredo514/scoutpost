@@ -221,7 +221,22 @@ export async function allDeckIds(db) {
  * thing anyone wants from a card list is what the expensive ones are. Unpriced
  * cards sort last rather than reading as free.
  */
-function cardFilterSql({ type, color, set }) {
+/**
+ * Printing groups, expressed as SQL over the `variant` column.
+ *
+ * The catalogue records the printing in `variant`: empty for the base card,
+ * 'a' for the alternate-art showcase, 'star' for the Signature, and codes like
+ * sp1/r01/t01 for promos and tokens. Naming them here means a reader never has
+ * to know that, and a Signature is findable by the word players actually use.
+ */
+const PRINTINGS = {
+  standard: "c.variant = ''",
+  showcase: "c.variant = 'a'",
+  signature: "c.variant = 'star'",
+  promo: "c.variant NOT IN ('', 'a', 'star')",
+};
+
+function cardFilterSql({ type, color, set, rarity, printing, q, priced }) {
   const where = [];
   const params = [];
   if (type) {
@@ -236,6 +251,24 @@ function cardFilterSql({ type, color, set }) {
     where.push('c.set_id = ?');
     params.push(set);
   }
+  if (rarity) {
+    where.push('c.rarity = ?');
+    params.push(rarity);
+  }
+  if (printing && PRINTINGS[printing]) {
+    where.push(PRINTINGS[printing]);
+  }
+  if (q) {
+    // Substring, case-insensitive, over name and printed code, so both
+    // "nashor" and "UNL-147" find the card. 1,180 rows makes a scan free;
+    // do not reach for FTS until the catalogue is an order of magnitude bigger.
+    where.push('(lower(c.name) LIKE ? OR lower(c.public_code) LIKE ?)');
+    const like = `%${String(q).toLowerCase()}%`;
+    params.push(like, like);
+  }
+  if (priced === 'yes') where.push('p.market_price IS NOT NULL');
+  if (priced === 'no') where.push('p.market_price IS NULL');
+
   return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 }
 
@@ -249,17 +282,26 @@ function cardFilterSql({ type, color, set }) {
  * A fixed map rather than interpolated input — the value arrives from a query
  * string, and ORDER BY cannot be parameterised.
  */
+const UNPRICED_LAST = 'CASE WHEN p.market_price IS NULL THEN 1 ELSE 0 END';
+
+/* Rarity has a meaningful order that alphabetical destroys. */
+const RARITY_RANK = `CASE c.rarity
+  WHEN 'common' THEN 1 WHEN 'uncommon' THEN 2 WHEN 'rare' THEN 3
+  WHEN 'epic' THEN 4 WHEN 'showcase' THEN 5 ELSE 6 END`;
+
 const CARD_SORTS = {
-  price: 'COALESCE(p.market_price, -1) DESC, c.name ASC',
-  set: 's.release_date DESC, c.collector_number ASC, c.variant ASC',
+  price: `${UNPRICED_LAST}, p.market_price DESC, c.name ASC`,
+  'price-asc': `${UNPRICED_LAST}, p.market_price ASC, c.name ASC`,
   name: 'c.name ASC, s.release_date DESC',
+  'name-desc': 'c.name DESC, s.release_date DESC',
+  set: 's.release_date DESC, c.collector_number ASC, c.variant ASC',
+  'set-asc': 's.release_date ASC, c.collector_number ASC, c.variant ASC',
+  rarity: `${RARITY_RANK} DESC, ${UNPRICED_LAST}, p.market_price DESC`,
+  'rarity-asc': `${RARITY_RANK} ASC, c.name ASC`,
 };
 
-export async function listCards(
-  db,
-  { type, color, set, sort = 'price', limit = 50, offset = 0 } = {},
-) {
-  const { clause, params } = cardFilterSql({ type, color, set });
+export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ...filters } = {}) {
+  const { clause, params } = cardFilterSql(filters);
   const order = CARD_SORTS[sort] ?? CARD_SORTS.price;
   const { results } = await db
     .prepare(
@@ -281,11 +323,24 @@ export async function listCards(
   return results ?? [];
 }
 
-/** How many cards match a filter — drives the pager and the result count. */
-export async function countCards(db, { type, color, set } = {}) {
-  const { clause, params } = cardFilterSql({ type, color, set });
+/**
+ * How many cards match a filter — drives the pager and the result count.
+ *
+ * Joins prices even though it counts rows, because the `priced` filter tests
+ * `p.market_price`. Counting against a different FROM clause than the listing
+ * uses is how a pager ends up disagreeing with its own results.
+ */
+export async function countCards(db, filters = {}) {
+  const { clause, params } = cardFilterSql(filters);
   const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM cards c ${clause}`)
+    .prepare(
+      `WITH ${LATEST_PRICES}
+       SELECT COUNT(*) AS n
+         FROM cards c
+         LEFT JOIN sets s ON s.id = c.set_id
+         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         ${clause}`,
+    )
     .bind(...params)
     .first();
   return row?.n ?? 0;
@@ -293,7 +348,7 @@ export async function countCards(db, { type, color, set } = {}) {
 
 /** Facet counts, so a filter button can say how much is behind it. */
 export async function cardFacets(db) {
-  const [types, colors, sets] = await Promise.all([
+  const [types, colors, sets, rarities] = await Promise.all([
     db.prepare('SELECT card_type AS v, COUNT(*) AS n FROM cards WHERE card_type IS NOT NULL GROUP BY card_type ORDER BY n DESC').all(),
     db.prepare('SELECT faction AS v, COUNT(*) AS n FROM cards WHERE faction IS NOT NULL GROUP BY faction ORDER BY n DESC').all(),
     // Newest set first — that is the one people are looking for.
@@ -303,10 +358,26 @@ export async function cardFacets(db) {
         GROUP BY c.set_id
         ORDER BY s.release_date DESC, c.set_id ASC`,
     ).all(),
+    // Scarcity order, not alphabetical — 'common, epic, rare' would be absurd.
+    db.prepare(
+      `SELECT rarity AS v, COUNT(*) AS n FROM cards WHERE rarity IS NOT NULL
+        GROUP BY rarity ORDER BY ${RARITY_RANK.replace(/c\.rarity/, 'rarity')} ASC`,
+    ).all(),
   ]);
   return {
     types: types.results ?? [],
     colors: colors.results ?? [],
     sets: sets.results ?? [],
+    rarities: rarities.results ?? [],
   };
+}
+
+/** Counts per printing group, so the Signature chip can say how many there are. */
+export async function printingFacets(db) {
+  const out = [];
+  for (const [key, sql] of Object.entries(PRINTINGS)) {
+    const row = await db.prepare(`SELECT COUNT(*) AS n FROM cards c WHERE ${sql}`).first();
+    out.push({ v: key, n: row?.n ?? 0 });
+  }
+  return out;
 }
