@@ -22,7 +22,7 @@ import {
 import { cardFacets, countCards, latestPriceDate, listCards } from '../lib/queries.js';
 import { cardImageSrc } from '../lib/images.js';
 
-const PER_PAGE = 60;
+const PER_PAGE = 50;
 
 /** Colour names as printed, from the lowercase values the catalogue stores. */
 const COLOR_LABELS = {
