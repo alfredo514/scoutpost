@@ -261,8 +261,11 @@ dedicated domain: attach it to the Worker, set `BASE_PATH="/"`, update
 
 Not yet built (roadmap order from the original brief):
 
-- [ ] **Card pages with price history** — `price_snapshots` has the raw daily
-      data; nothing surfaces it yet
+- [x] **/cards browser** — every card, filterable by type and colour, priced
+      and sorted by cost. Filters are query-string links, not scripts
+- [ ] **Per-card pages with price history** — `price_snapshots` holds the raw
+      daily data and nothing charts it yet. The browser above does NOT link to
+      per-card pages, because there are none: that is the remaining half
 - [ ] **Ranking pages** — most expensive overall / by set / signatures, biggest
       movers
 - [ ] **Box EV calculator**

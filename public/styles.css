@@ -649,3 +649,89 @@ body::after {
 
 /* Rows should answer the pointer immediately. */
 .data-table tbody tr:hover { background: rgba(var(--accent-rgb), .05); }
+
+/* ───────────────────────── Card browser ─────────────────────────
+ * Filters are links, not scripts, so each one is a real shareable URL and the
+ * page works with JavaScript off. The chips are styled as buttons because that
+ * is what they behave like; `aria-current` carries the active state to a screen
+ * reader, since colour alone would not. */
+
+.filters {
+  display: flex; flex-direction: column; gap: .55rem;
+  padding: .95rem 1.05rem; margin-bottom: 1.6rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.filter-row { display: flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
+.filter-label {
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
+  flex: none; width: 4.2rem;
+}
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; min-width: 0; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .3rem .65rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text-mid); text-decoration: none;
+  font-size: .82rem; font-weight: 600; text-transform: capitalize;
+  transition: color var(--snap), background var(--snap), border-color var(--snap);
+}
+.chip:hover { color: var(--text); border-color: #2a5138; }
+.chip.is-on {
+  background: var(--accent); border-color: var(--accent); color: var(--ink);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), .25);
+}
+.chip-count {
+  font-family: var(--mono); font-size: .68rem; font-variant-numeric: tabular-nums;
+  opacity: .65;
+}
+.chip-clear { color: var(--neg); border-color: rgba(var(--neg-rgb), .3); }
+
+/* The grid. Tiles are card-shaped because the art is the fastest way to
+ * recognise a card — the name underneath is confirmation, not identification. */
+.card-grid {
+  list-style: none;
+  display: grid; gap: .8rem;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+}
+.card-tile {
+  display: flex; flex-direction: column; gap: .1rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: .5rem;
+  transition: border-color var(--snap), transform var(--snap), background var(--snap);
+}
+.card-tile:hover {
+  border-color: rgba(var(--accent-rgb), .45); background: var(--surface-2);
+  transform: translateY(-2px);
+}
+.tile-art { display: block; margin-bottom: .45rem; }
+.tile-art img {
+  display: block; width: 100%; height: auto;
+  border-radius: 2px; background: var(--surface-2);
+}
+.tile-art--empty {
+  display: block; width: 100%; aspect-ratio: 300 / 418;
+  border: 1px dashed var(--line); border-radius: 2px;
+}
+.tile-name { font-size: .82rem; font-weight: 600; line-height: 1.25; }
+.tile-meta {
+  font-family: var(--mono); font-size: .66rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.tile-price {
+  font-family: var(--mono); font-size: .86rem; font-weight: 600;
+  color: var(--accent); margin-top: .2rem; font-variant-numeric: tabular-nums;
+}
+.tile-price.is-unpriced { color: var(--text-dim); font-weight: 400; }
+
+.pager {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1rem; margin-top: 1.8rem; flex-wrap: wrap;
+}
+.pager-at {
+  font-family: var(--mono); font-size: .82rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.btn.is-disabled { opacity: .4; cursor: default; }

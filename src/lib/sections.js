@@ -32,12 +32,8 @@ export const SECTIONS = [
   {
     path: '/cards',
     label: 'Cards',
-    status: 'planned',
-    summary: 'A page per card: what it costs today and how that price has moved.',
-    detail: [
-      'Every card in a decklist will link to its own page — the current market price, the price history as a chart, and which top-8 decks are playing it.',
-      'The daily price snapshots behind this are already being collected, and have been since the site launched. What is missing is the page that reads them, not the data.',
-    ],
+    status: 'live',
+    summary: 'Every card in the catalogue, filterable by type and colour, priced daily.',
   },
   {
     path: '/rankings',

@@ -208,3 +208,72 @@ export async function allDeckIds(db) {
   const { results } = await db.prepare('SELECT id FROM decks').all();
   return results ?? [];
 }
+
+/**
+ * The card browser behind /cards.
+ *
+ * Filters are plain SQL over indexed columns, built from whatever the caller
+ * passes, because the page drives them from query-string links rather than
+ * JavaScript — a filtered view has to be a real URL that can be shared,
+ * bookmarked and crawled.
+ *
+ * Ordering is price descending, which is this site's whole angle: the first
+ * thing anyone wants from a card list is what the expensive ones are. Unpriced
+ * cards sort last rather than reading as free.
+ */
+function cardFilterSql({ type, color, set }) {
+  const where = [];
+  const params = [];
+  if (type) {
+    where.push('c.card_type = ?');
+    params.push(type);
+  }
+  if (color) {
+    where.push('c.faction = ?');
+    params.push(color);
+  }
+  if (set) {
+    where.push('c.set_id = ?');
+    params.push(set);
+  }
+  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+export async function listCards(db, { type, color, set, limit = 60, offset = 0 } = {}) {
+  const { clause, params } = cardFilterSql({ type, color, set });
+  const { results } = await db
+    .prepare(
+      `WITH ${LATEST_PRICES}
+       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+              c.rarity, c.card_type, c.faction,
+              c.image_thumb_url, c.image_large_url,
+              p.market_price
+         FROM cards c
+         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         ${clause}
+        ORDER BY COALESCE(p.market_price, -1) DESC, c.name ASC
+        LIMIT ? OFFSET ?`,
+    )
+    .bind(...params, limit, offset)
+    .all();
+  return results ?? [];
+}
+
+/** How many cards match a filter — drives the pager and the result count. */
+export async function countCards(db, { type, color, set } = {}) {
+  const { clause, params } = cardFilterSql({ type, color, set });
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM cards c ${clause}`)
+    .bind(...params)
+    .first();
+  return row?.n ?? 0;
+}
+
+/** Facet counts, so a filter button can say how much is behind it. */
+export async function cardFacets(db) {
+  const [types, colors] = await Promise.all([
+    db.prepare('SELECT card_type AS v, COUNT(*) AS n FROM cards WHERE card_type IS NOT NULL GROUP BY card_type ORDER BY n DESC').all(),
+    db.prepare('SELECT faction AS v, COUNT(*) AS n FROM cards WHERE faction IS NOT NULL GROUP BY faction ORDER BY n DESC').all(),
+  ]);
+  return { types: types.results ?? [], colors: colors.results ?? [] };
+}
