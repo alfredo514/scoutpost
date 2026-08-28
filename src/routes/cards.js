@@ -31,6 +31,11 @@ import { cardImageSrc } from '../lib/images.js';
 
 const PER_PAGE = 50;
 
+/* Fragment ids for the click-to-enlarge overlays. Prefixed so a card id can
+ * never collide with another element on the page. */
+const CARD_FRAGMENT = 'card-';
+const GRID_ID = 'grid';
+
 /** Colour names as printed, from the lowercase values the catalogue stores. */
 const COLOR_LABELS = {
   body: 'Body',
@@ -89,19 +94,17 @@ function cardTile(env, c) {
   const large = cardImageSrc(env, c, 'large');
   const code = c.public_code || `${c.set_id}-${c.collector_number}`;
 
-  // Same hover enlargement as everywhere else on the site: a background on an
-  // element that is display:none until hover, so none of these ~100 KB images
-  // load until one is actually asked for.
-  const zoom = large
-    ? `<span class="card-zoom" aria-hidden="true" style="--art:url('${esc(large)}')"></span>`
-    : '';
-
   const art = thumb
     ? `<img src="${esc(thumb)}" width="300" height="418" loading="lazy" decoding="async"
            alt="${esc(c.name)}"/>`
     : '<span class="tile-art--empty" aria-hidden="true"></span>';
 
-  return `<li class="card-tile"${large ? ' tabindex="0"' : ''}>
+  // Clicking a tile opens the enlargement via :target — no JavaScript, a real
+  // URL, and it works on touch, where the decklist's hover preview cannot.
+  const open = large ? `#${CARD_FRAGMENT}${esc(c.id)}` : null;
+
+  return `<li class="card-tile">
+      ${open ? `<a class="tile-open" href="${open}" aria-label="Enlarge ${esc(c.name)}">` : ''}
       <span class="tile-art">${art}</span>
       <span class="tile-name">${esc(c.name)}</span>
       <span class="tile-meta">${esc(code)}</span>
@@ -114,8 +117,43 @@ function cardTile(env, c) {
       <span class="tile-price${c.market_price === null ? ' is-unpriced' : ''}">${
         c.market_price === null ? 'No price' : money(c.market_price)
       }</span>
-      ${zoom}
+      ${open ? '</a>' : ''}
     </li>`;
+}
+
+/**
+ * The enlargement for one card.
+ *
+ * Hidden until its fragment is the URL target, and the art is a background on
+ * that hidden element — so a page of 50 cards fetches 50 thumbnails and zero
+ * full-size images until someone actually opens one.
+ *
+ * The backdrop is itself a link back to the grid, which is what lets a click
+ * anywhere outside the card close it without a line of script.
+ */
+function cardLightbox(env, c) {
+  const large = cardImageSrc(env, c, 'large');
+  if (!large) return '';
+  return `<div class="lightbox" id="${CARD_FRAGMENT}${esc(c.id)}" role="dialog"
+       aria-label="${esc(c.name)}">
+      <a class="lightbox-back" href="#${GRID_ID}" aria-label="Close"></a>
+      <div class="lightbox-inner">
+        ${/* A background, NOT an <img>. Browsers fetch an <img src> even inside
+             a display:none container, which would pull ~100 KB x 50 cards on
+             every page load; a background on a hidden element is not fetched
+             until it renders. The dialog's aria-label and the caption below
+             carry the name, so nothing is lost by having no alt text. */ ''}
+        <div class="lightbox-art" style="--art:url('${esc(large)}')" role="img"
+             aria-label="${esc(c.name)}"></div>
+        <p class="lightbox-cap">
+          <b>${esc(c.name)}</b>
+          <span>${esc(c.public_code || c.set_id)} · ${
+            c.market_price === null ? 'No price' : money(c.market_price)
+          }</span>
+        </p>
+        <a class="lightbox-close" href="#${GRID_ID}">Close</a>
+      </div>
+    </div>`;
 }
 
 export async function onRequestGet({ request, env }) {
@@ -323,7 +361,8 @@ ${adSlot('leaderboard')}
 
 ${
   cards.length
-    ? `<ul class="card-grid">${cards.map((c) => cardTile(env, c)).join('')}</ul>`
+    ? `<ul class="card-grid" id="${GRID_ID}">${cards.map((c) => cardTile(env, c)).join('')}</ul>
+       ${cards.map((c) => cardLightbox(env, c)).join('')}`
     : `<section class="panel empty">
          <h3>Nothing matches that combination</h3>
          <p>Try a different type or colour.</p>
