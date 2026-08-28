@@ -50,6 +50,16 @@ const PRINTING_LABELS = {
   promo: 'Promo',
 };
 
+/**
+ * Icon for a domain, cut from that domain's Rune card by
+ * scripts/make-domain-icons.mjs. Colourless has no Rune card and so no icon —
+ * callers fall back to the label alone rather than showing a gap.
+ */
+const DOMAINS_WITH_ICONS = new Set(['body', 'calm', 'chaos', 'fury', 'mind', 'order']);
+function domainIcon(env, faction) {
+  return DOMAINS_WITH_ICONS.has(faction) ? url(env, `/domain-${faction}.png`) : null;
+}
+
 /** Build a /cards URL carrying the current filters, with one of them changed. */
 function filterUrl(env, current, change) {
   const next = { ...current, ...change };
@@ -64,10 +74,12 @@ function filterUrl(env, current, change) {
   return url(env, `/cards${query ? `?${query}` : ''}`);
 }
 
-function filterButton(env, current, change, label, count, isActive) {
+function filterButton(env, current, change, label, count, isActive, iconSrc) {
   return `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(
     filterUrl(env, current, { ...change, page: 1 }),
-  )}"${isActive ? ' aria-current="true"' : ''}>${esc(label)}${
+  )}"${isActive ? ' aria-current="true"' : ''}>${
+    iconSrc ? `<img class="chip-icon" src="${esc(iconSrc)}" width="16" height="16" alt=""/>` : ''
+  }${esc(label)}${
     count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`
   }</a>`;
 }
@@ -93,7 +105,12 @@ function cardTile(env, c) {
       <span class="tile-art">${art}</span>
       <span class="tile-name">${esc(c.name)}</span>
       <span class="tile-meta">${esc(code)}</span>
-      <span class="tile-set">${esc(c.set_name || c.set_id)}</span>
+      <span class="tile-set">${
+        domainIcon(env, c.faction)
+          ? `<img class="tile-domain" src="${esc(domainIcon(env, c.faction))}" width="14" height="14"
+                 alt="${esc(c.faction)}" loading="lazy"/>`
+          : ''
+      }${esc(c.set_name || c.set_id)}</span>
       <span class="tile-price${c.market_price === null ? ' is-unpriced' : ''}">${
         c.market_price === null ? 'No price' : money(c.market_price)
       }</span>
@@ -149,6 +166,7 @@ export async function onRequestGet({ request, env }) {
         COLOR_LABELS[c.v] ?? c.v,
         c.n,
         current.color === c.v,
+        domainIcon(env, c.v),
       ),
     ),
   ].join('');

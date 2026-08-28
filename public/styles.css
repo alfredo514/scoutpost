@@ -776,3 +776,16 @@ body::after {
   padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/* Domain icons, cut from each colour's Rune card. They carry the domain's own
+ * colour, which is what makes a row of colour filters scannable at a glance —
+ * the label is confirmation, the symbol is recognition. */
+.chip-icon {
+  width: 16px; height: 16px; flex: none;
+  border-radius: 2px; vertical-align: -.2em;
+}
+.tile-domain {
+  width: 14px; height: 14px;
+  border-radius: 2px; vertical-align: -.2em; margin-right: .3rem;
+}
+.tile-set { display: flex; align-items: center; }

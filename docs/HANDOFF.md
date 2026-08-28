@@ -573,3 +573,34 @@ other dark dashboard. If page weight ever matters more than identity, dropping
 the `<link>` in `render.js` degrades cleanly to the fallback stacks.
 
 **Still no JavaScript anywhere**, card enlargements included. Keep it that way.
+
+---
+
+## 14. Domain (colour) icons
+
+Riftscribe publishes **no icon assets** — a card carries only `faction: "fury"`
+and `domains: ["Fury"]` as text. But every domain has a **Rune card whose art is
+its symbol**: a large light glyph, centred, on the domain's own colour. So the
+icons are cut from the real cards:
+
+```bash
+node scripts/make-domain-icons.mjs      # writes public/domain-<faction>.png
+```
+
+This matters more than convenience. Players already know these symbols, and an
+invented glyph would be worse than no glyph at all — it would look like an
+official mark and mean nothing.
+
+The Rune card ids are hardcoded in that script. **Re-run it if the art is ever
+reprinted**, and check the output by eye.
+
+Detection gotcha: a Riftbound card has a light frame around its whole edge and a
+near-white title band under the art, both as bright as the glyph. Searching the
+full card for near-white pixels returns the full card, which is what the first
+attempt did. The search window is inset past the frame and stops above the title
+band; the threshold alone will not save you.
+
+**Colourless has no Rune card and therefore no icon.** Its chip is text-only,
+and `domainIcon()` returns null for it rather than linking a missing file.
+
+Icons appear on the `/cards` colour filter chips and on every card tile.
