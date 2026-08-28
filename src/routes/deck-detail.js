@@ -15,6 +15,44 @@ import { cardImageSrc } from '../lib/images.js';
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 /**
+ * Reading order for a decklist.
+ *
+ * The Legend leads because it is the deck's leader — it decides what the rest
+ * of the list is allowed to be, so a player identifies a deck by it before
+ * anything else. Then the body of the deck, then the resources it runs on.
+ *
+ * Sorting purely by price, which is what this page used to do, buried the
+ * Legend wherever its market price happened to put it. That is the wrong
+ * answer for a reader even on a site about prices. Cost order is kept *within*
+ * each group, so the expensive cards still surface where they matter.
+ */
+const TYPE_ORDER = ['Legend', 'Unit', 'Spell', 'Gear', 'Battlefield', 'Rune'];
+
+const TYPE_LABELS = {
+  Legend: 'Legend',
+  Unit: 'Units',
+  Spell: 'Spells',
+  Gear: 'Gear',
+  Battlefield: 'Battlefields',
+  Rune: 'Runes',
+};
+
+/** [[type, cards], …] in TYPE_ORDER; anything unrecognised sorts last. */
+function groupByType(list) {
+  const groups = new Map();
+  for (const c of list) {
+    const type = c.card_type || 'Other';
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type).push(c);
+  }
+  const rank = (t) => {
+    const i = TYPE_ORDER.indexOf(t);
+    return i === -1 ? TYPE_ORDER.length : i;
+  };
+  return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
+}
+
+/**
  * One row's card cell: thumbnail, name, printed code, and a full-size
  * enlargement shown on hover or keyboard focus.
  *
@@ -86,14 +124,22 @@ export async function onRequestGet({ env, params }) {
   const sectionRow = (label, list) =>
     `<tr class="section-row"><td colspan="5">${esc(label)} <span class="section-meta">${esc(
       qty(list),
-    )} cards · ${money(sum(list))}</span></td></tr>`;
+    )} card${qty(list) === 1 ? '' : 's'} · ${money(sum(list))}</span></td></tr>`;
+
+  const mainRows = groupByType(main)
+    .map(([type, list]) => sectionRow(TYPE_LABELS[type] ?? type, list) + list.map(cardRow).join(''))
+    .join('');
 
   const rows = cards.length
     ? [
-        main.length ? sectionRow('Maindeck', main) + main.map(cardRow).join('') : '',
+        mainRows,
         side.length ? sectionRow('Sideboard', side) + side.map(cardRow).join('') : '',
       ].join('')
     : `<tr><td colspan="5" class="empty-cell">No cards recorded for this deck.</td></tr>`;
+
+  // The deck's leader, shown alongside the list the way a player thinks of it.
+  const legendCard = main.find((c) => c.card_type === 'Legend');
+  const legendArt = legendCard ? cardImageSrc(env, legendCard, 'large') : null;
 
   const body = `
 <div class="page-head">
@@ -138,27 +184,44 @@ ${
 
 ${adSlot('leaderboard')}
 
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th scope="col" class="num">Qty</th>
-        <th scope="col">Card</th>
-        <th scope="col">Rarity</th>
-        <th scope="col" class="num">Unit price</th>
-        <th scope="col" class="num">Line total</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-    <tfoot>
-      <tr>
-        <td colspan="4" class="num">Total</td>
-        <td class="num"><b class="cost">${money(total)}</b></td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
-${priceDate ? `<p class="source-note">Market prices as of ${esc(formatDate(priceDate))}, via TCGplayer.</p>` : ''}`;
+<div class="deck-layout">
+  <div class="deck-list">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th scope="col" class="num">Qty</th>
+            <th scope="col">Card</th>
+            <th scope="col">Rarity</th>
+            <th scope="col" class="num">Unit price</th>
+            <th scope="col" class="num">Line total</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="num">Total</td>
+            <td class="num"><b class="cost">${money(total)}</b></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    ${priceDate ? `<p class="source-note">Market prices as of ${esc(formatDate(priceDate))}, via TCGplayer.</p>` : ''}
+  </div>
+  ${
+    legendArt
+      ? `<aside class="legend-panel" aria-label="Legend">
+    <h2 class="legend-panel-title">Legend</h2>
+    <img class="legend-art" src="${esc(legendArt)}" width="744" height="1039"
+         alt="${esc(legendCard.name)}" decoding="async"/>
+    <p class="legend-panel-name">${esc(legendCard.name)}</p>
+    <p class="legend-panel-meta">${esc(
+      legendCard.public_code || `${legendCard.set_id}-${legendCard.collector_number}`,
+    )} · ${money(legendCard.market_price)}</p>
+  </aside>`
+      : ''
+  }
+</div>`;
 
   return htmlResponse(
     layout(env, {

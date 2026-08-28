@@ -426,6 +426,20 @@ npx wrangler d1 execute scoutpost --remote --command "SELECT started_at, rows_wr
 
 ### On the page
 
+Decklists group by card type, **Legend first**. The Legend is the deck.s
+leader — it decides what the rest of the list may contain, so a player
+identifies a deck by it before anything else. Sorting the whole list by price,
+which this page did until 2026-08-27, buried the Legend wherever its market
+price happened to fall. Cost order is kept *within* each group, so expensive
+cards still surface where they matter. Order is `TYPE_ORDER` in
+`src/routes/deck-detail.js`: Legend, Units, Spells, Gear, Battlefields, Runes,
+then the sideboard.
+
+The Legend also gets its own panel beside the list (`.legend-panel`), sticky so
+it stays in view while a 31-row list scrolls. Its art is the one image on the
+page that is **not** lazy-loaded: it is the focal point, and deferring it delays
+the thing the reader came for.
+
 Decklist rows carry a 40x56 thumbnail, and hovering a row (or tab-focusing it)
 shows the large rendition pinned to the right of the viewport, big enough to
 read the card text.
