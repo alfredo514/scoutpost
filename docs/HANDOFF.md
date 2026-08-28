@@ -604,3 +604,30 @@ band; the threshold alone will not save you.
 and `domainIcon()` returns null for it rather than linking a missing file.
 
 Icons appear on the `/cards` colour filter chips and on every card tile.
+
+---
+
+## 15. Event filtering by set
+
+`/events` filters by the set that was legal when an event was played. **The era
+is derived from dates, never stored** — `EVENT_ERA` in `queries.js` picks the
+most recent set released on or before the event date, so a new set needs no
+migration and no backfill. It appears as a pill the moment the catalogue
+ingests it.
+
+Sets sharing a release date are one era, labelled by whichever has more cards.
+That is what keeps *Origins: Proving Grounds* — a 24-card starter released the
+same day as Origins — from showing up as a format of its own, without naming it
+in code.
+
+**The default view is the newest set only.** `/events` with no parameter shows
+Vendetta; `?set=all` is an explicit choice. A result is only meaningful against
+the format it was played in, which is the argument for it — but be aware of the
+cost, which at the time of writing is that **3 of 4 events are hidden by
+default**. A note under the table says so and links to the full list. If the
+event count grows and that tradeoff stops paying, `DEFAULT_ERA` in
+`src/routes/events-list.js` is the single switch.
+
+The filter sits **above** `adSlot('leaderboard')` so the reserved 90px
+leaderboard height is never displaced and nothing below it shifts when the
+filter changes.

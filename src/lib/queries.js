@@ -61,7 +61,15 @@ export async function latestPriceDate(db) {
   return row?.d ?? null;
 }
 
-export async function listEvents(db, { limit = 50 } = {}) {
+/**
+ * Events, newest first, each with the cost spread across its top 8.
+ *
+ * `era` filters to the set that was legal when the event was played. It is
+ * derived from dates, not stored, so a new set needs no migration.
+ */
+export async function listEvents(db, { limit = 50, era = '' } = {}) {
+  const filter = era ? `HAVING era = ?` : '';
+  const params = era ? [era, limit] : [limit];
   const { results } = await db
     .prepare(
       `WITH ${LATEST_PRICES},
@@ -74,18 +82,28 @@ export async function listEvents(db, { limit = 50 } = {}) {
           GROUP BY d.id
        )
        SELECT e.*,
+              ${EVENT_ERA} AS era,
               COUNT(dc.deck_id)  AS deck_count,
               MAX(dc.cost)       AS max_cost,
               MIN(dc.cost)       AS min_cost
          FROM events e
          LEFT JOIN deck_costs dc ON dc.event_id = e.id
         GROUP BY e.id
+        ${filter}
         ORDER BY e.date DESC
         LIMIT ?`,
     )
-    .bind(limit)
+    .bind(...params)
     .all();
   return results ?? [];
+}
+
+/** How many events sit in each era — drives the counts on the filter pills. */
+export async function eventEraCounts(db) {
+  const { results } = await db
+    .prepare(`SELECT ${EVENT_ERA} AS era, COUNT(*) AS n FROM events e GROUP BY era`)
+    .all();
+  return Object.fromEntries((results ?? []).map((r) => [r.era, r.n]));
 }
 
 export async function getEvent(db, slug) {
@@ -381,3 +399,41 @@ export async function printingFacets(db) {
   }
   return out;
 }
+
+/**
+ * The format eras — the main sets, newest first.
+ *
+ * An event belongs to the set that was legal when it was played, so the era is
+ * derived from dates rather than stored on the event. That means a new set
+ * needs no migration: it appears here the moment the catalogue ingests it.
+ *
+ * Sets sharing a release date are one era, labelled by the larger of them.
+ * Origins: Proving Grounds is a 24-card starter released alongside Origins and
+ * is not a format of its own, which is what the card-count ordering handles
+ * without naming it.
+ */
+export async function setEras(db) {
+  const { results } = await db
+    .prepare(
+      `SELECT s.id, s.name, s.release_date, COUNT(c.id) AS cards
+         FROM sets s LEFT JOIN cards c ON c.set_id = s.id
+        WHERE s.release_date IS NOT NULL
+        GROUP BY s.id
+        ORDER BY s.release_date DESC, cards DESC`,
+    )
+    .all();
+
+  const byDate = new Map();
+  for (const row of results ?? []) if (!byDate.has(row.release_date)) byDate.set(row.release_date, row);
+  return [...byDate.values()];
+}
+
+/**
+ * Which era an event falls in: the most recent set released on or before it.
+ * Expressed as SQL so it can be both selected and filtered on.
+ */
+const EVENT_ERA = `
+  (SELECT s.id FROM sets s
+    WHERE s.release_date <= e.date
+    ORDER BY s.release_date DESC, (SELECT COUNT(*) FROM cards WHERE set_id = s.id) DESC
+    LIMIT 1)`;

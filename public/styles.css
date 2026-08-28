@@ -860,3 +860,18 @@ body::after {
  * table. On a grid they fire constantly as the pointer crosses tiles, so the
  * grid uses click instead. */
 .card-tile .card-zoom { display: none !important; }
+
+/* Set filter above the events table. Reuses the .chip styling from the card
+ * browser so the two filters read as the same control, and sits above the
+ * ad slot so the reserved leaderboard height is never displaced. */
+.era-filter {
+  display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
+  padding: .7rem .9rem; margin-bottom: 1.2rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+@media (max-width: 560px) {
+  /* On a phone the label would eat a whole row; the pills carry the meaning. */
+  .era-filter .filter-label { width: auto; }
+  .era-filter { gap: .5rem; }
+}
