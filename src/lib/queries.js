@@ -422,13 +422,25 @@ export async function cardFacets(db) {
 }
 
 /** Counts per printing group, so the Signature chip can say how many there are. */
+/**
+ * How many cards fall in each printing group.
+ *
+ * One pass with a conditional count per group, not one query per group. The
+ * loop that was here awaited four round trips in sequence for four numbers off
+ * the same 1,180-row scan — on the critical path of both /cards and /rankings,
+ * where every one of those trips is latency the reader waits for.
+ *
+ * Order comes from PRINTINGS, so the chips stay in the order that object
+ * declares and adding a group there needs no change here.
+ */
 export async function printingFacets(db) {
-  const out = [];
-  for (const [key, sql] of Object.entries(PRINTINGS)) {
-    const row = await db.prepare(`SELECT COUNT(*) AS n FROM cards c WHERE ${sql}`).first();
-    out.push({ v: key, n: row?.n ?? 0 });
-  }
-  return out;
+  const groups = Object.entries(PRINTINGS);
+  const columns = groups
+    .map(([key, sql], i) => `SUM(CASE WHEN ${sql} THEN 1 ELSE 0 END) AS g${i}`)
+    .join(', ');
+
+  const row = await db.prepare(`SELECT ${columns} FROM cards c`).first();
+  return groups.map(([key], i) => ({ v: key, n: row?.[`g${i}`] ?? 0 }));
 }
 
 /**

@@ -785,76 +785,9 @@ body::after {
 }
 .tile-set { display: flex; align-items: center; }
 
-/* ───────────────────────── Click to enlarge ─────────────────────────
- * A CSS-only lightbox driven by :target. Clicking a tile navigates to that
- * card's fragment, which reveals its overlay; the backdrop is itself a link
- * back to the grid, so clicking anywhere outside closes it. No JavaScript, and
- * unlike the decklist's hover preview this works on touch.
- *
- * The art is a background on a hidden element, so a page of 50 cards fetches
- * 50 thumbnails and zero full-size images until one is actually opened. */
-
+/* The tile is one link around art, name and price. display:contents keeps the
+ * anchor out of the layout so the tile's own flex column still governs. */
 .tile-open { text-decoration: none; color: inherit; display: contents; }
-
-.lightbox { display: none; }
-.lightbox:target {
-  display: grid; place-items: center;
-  position: fixed; inset: 0; z-index: 300;
-  padding: 1.5rem;
-}
-.lightbox-back {
-  /* fixed, not absolute: an absolute inset:0 resolves against the padding box,
-   * which left the outer padding un-clickable and the backdrop short of the
-   * viewport edges. */
-  position: fixed; inset: 0;
-  background: rgba(4, 10, 6, .82);
-  backdrop-filter: blur(3px);
-}
-.lightbox-inner {
-  position: relative;
-  display: flex; flex-direction: column; align-items: center; gap: .7rem;
-  max-height: 100%;
-}
-.lightbox-art {
-  /* Height drives the box and the width follows from the card's aspect. Sizing
-   * by width instead let max-height clamp the height while the width stayed
-   * put, which produced a 480x533 box for a 744x1039 card. */
-  height: min(74vh, 40rem);
-  width: auto;
-  max-width: 78vw;
-  aspect-ratio: 744 / 1039;
-  background: var(--art) center / contain no-repeat;
-  border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .3),
-              0 30px 70px rgba(0, 0, 0, .7),
-              0 0 50px rgba(var(--accent-rgb), .12);
-}
-.lightbox-cap { text-align: center; line-height: 1.35; }
-.lightbox-cap b { display: block; font-size: 1.02rem; }
-.lightbox-cap span {
-  font-family: var(--mono); font-size: .84rem; color: var(--text-mid);
-  font-variant-numeric: tabular-nums;
-}
-.lightbox-close {
-  /* min-height, not just padding: touch is the primary user of this control
-   * and 44px is the smallest reliable tap target. */
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: .4rem 1.4rem; border-radius: var(--radius-sm);
-  border: 1px solid var(--line); background: var(--surface);
-  color: var(--text); text-decoration: none;
-  font-size: .85rem; font-weight: 600;
-  transition: background var(--snap), border-color var(--snap);
-}
-.lightbox-close:hover { background: var(--surface-2); border-color: #2a5138; }
-
-/* The grid is a scroll anchor for the close links; it must not add its own
- * offset jump under the sticky header. */
-.card-grid { scroll-margin-top: 5rem; }
-
-/* Hover previews stay on decklist rows, where the pointer travels along a
- * table. On a grid they fire constantly as the pointer crosses tiles, so the
- * grid uses click instead. */
-.card-tile .card-zoom { display: none !important; }
 
 /* Set filter above the events table. Reuses the .chip styling from the card
  * browser so the two filters read as the same control, and sits above the
@@ -865,7 +798,6 @@ body::after {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-
 
 /* ───────────────────────── Card detail ─────────────────────────
  * Art on one side, the card's words on the other. The text pane is not
@@ -926,26 +858,11 @@ body::after {
   padding: 1rem 1.15rem; margin: 1.1rem 0;
 }
 .rules-text { font-size: 1.02rem; line-height: 1.65; max-width: 54ch; }
-/* Reminder text is italic on the physical card; keep that. */
-.reminder-text {
-  font-style: italic; color: var(--text-mid);
-  font-size: .93rem; margin-top: .5rem; max-width: 54ch;
-}
 /* Flavor text is italic on the card too, and is flavour — set it back. */
 .flavor-text {
   font-style: italic; color: var(--text-mid);
   font-size: .98rem; max-width: 48ch;
   padding-left: .9rem; border-left: 2px solid var(--line);
-}
-
-/* An Energy cost printed inline in rules text, as the card prints a numeral
- * inside a pip. */
-.energy-pip {
-  display: inline-grid; place-items: center;
-  min-width: 1.35em; height: 1.35em; padding: 0 .25em;
-  border-radius: 999px; background: var(--accent); color: var(--ink);
-  font-family: var(--mono); font-size: .82em; font-weight: 700;
-  vertical-align: -.15em;
 }
 
 .card-price-row { margin-top: 1.4rem; }

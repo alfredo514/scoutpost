@@ -28,18 +28,10 @@ import {
 } from '../lib/render.js';
 import { decksPlayingCard, getCard } from '../lib/queries.js';
 import { cardImageSrc } from '../lib/images.js';
+import { COLOR_LABELS, domainIconSrc } from '../lib/vocab.js';
 
-const DOMAINS_WITH_ICONS = new Set(['body', 'calm', 'chaos', 'fury', 'mind', 'order']);
 
-const COLOR_LABELS = {
-  body: 'Body',
-  calm: 'Calm',
-  chaos: 'Chaos',
-  fury: 'Fury',
-  mind: 'Mind',
-  order: 'Order',
-  colorless: 'Colourless',
-};
+
 
 /**
  * Render card text safely.
@@ -66,7 +58,7 @@ export async function onRequestGet({ env, params }) {
   // subtitle is simply the part of the name after the comma.
   const subtitle = card.name.includes(',') ? card.name.split(',').slice(1).join(',').trim() : '';
 
-  const domainIcon = DOMAINS_WITH_ICONS.has(card.faction)
+  const domainIcon = domainIconSrc(env, card.faction)
     ? `<img class="stat-domain" src="${esc(url(env, `/domain-${card.faction}.png`))}"
            width="20" height="20" alt="${esc(COLOR_LABELS[card.faction] ?? card.faction)}"/>`
     : '';

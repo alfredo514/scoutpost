@@ -6,13 +6,12 @@ import {
   layout,
   money,
   notFound,
+  ordinal,
   placeLabel,
   url,
 } from '../lib/render.js';
 import { getDeck, getDeckCards } from '../lib/queries.js';
 import { cardImageSrc, cardMark } from '../lib/images.js';
-
-const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 /**
  * Reading order for a decklist.
@@ -103,7 +102,7 @@ export async function onRequestGet({ env, params }) {
   <h1>${esc(deck.legend || deck.player_name || 'Decklist')}</h1>
   <p class="meta-line">
     <span class="place place-${esc(deck.placement)}">${esc(
-      ORDINALS[deck.placement] ?? deck.placement,
+      ordinal(deck.placement),
     )}</span>
     at <a class="strong-link" href="${esc(url(env, `/events/${deck.event_slug}`))}">${esc(
       deck.event_name,
@@ -183,17 +182,17 @@ ${adSlot('leaderboard')}
   return htmlResponse(
     layout(env, {
       title: `${deck.legend || deck.player_name || 'Decklist'} — ${
-        ORDINALS[deck.placement] ?? deck.placement
+        ordinal(deck.placement)
       } at ${deck.event_name} | Scoutpost`,
       description: `Full decklist and ${money(total)} build cost for the ${
-        ORDINALS[deck.placement] ?? deck.placement
+        ordinal(deck.placement)
       } place deck at ${deck.event_name}, priced with daily TCGplayer market data.`,
       path: `/decks/${deck.id}`,
       crumbs: [
         { name: 'Scoutpost', path: '/' },
         { name: 'Events', path: '/events' },
         { name: deck.event_name, path: `/events/${deck.event_slug}` },
-        { name: ORDINALS[deck.placement] ?? String(deck.placement), path: `/decks/${deck.id}` },
+        { name: ordinal(deck.placement), path: `/decks/${deck.id}` },
       ],
       body,
     }),

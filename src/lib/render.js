@@ -259,13 +259,54 @@ export function notFound(env, what = 'Page') {
  *   allLabel  wording of the first pill ('All events' / 'All decks')
  *   total     count for the first pill
  */
+/**
+ * One filter chip.
+ *
+ * Every filter on this site is a link, so a chip is an anchor and nothing more.
+ * The same markup was written out three times — /cards, /rankings and the set
+ * bar below — which is three chances for the active state or the count badge to
+ * drift apart. The href is built by the caller, because the URL policy is the
+ * one part that really is per-page (which keys survive, whether a page resets).
+ *
+ * `isDefault` marks a chip that is on because nobody has chosen anything yet.
+ * Those get a quiet outline rather than the accent fill, so the green on a page
+ * always means "you narrowed this" — see .chip.is-default in styles.css.
+ */
+export function chipLink({ href, label, count, isActive = false, isDefault = false, icon = null }) {
+  const state = isActive ? (isDefault ? ' is-default' : ' is-on') : '';
+  return `<a class="chip${state}" href="${esc(href)}"${
+    isActive ? ' aria-current="true"' : ''
+  }>${
+    icon ? `<img class="chip-icon" src="${esc(icon)}" width="16" height="16" alt=""/>` : ''
+  }${esc(label)}${
+    count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`
+  }</a>`;
+}
+
+/**
+ * Ordinal suffix for a top-8 placement.
+ *
+ * Only ever 1-8 here, so this is the whole rule rather than the general case
+ * with its 11th/12th/13th exceptions. Both forms are exported because a table
+ * column headed "Place" wants a bare `1` with ` st Place` as a separate span,
+ * while prose wants `1st` in one piece.
+ */
+export function ordinalSuffix(n) {
+  return { 1: 'st', 2: 'nd', 3: 'rd' }[n] ?? 'th';
+}
+
+export function ordinal(n) {
+  return `${n}${ordinalSuffix(n)}`;
+}
+
 export function eraFilterBar(env, { path, eras, counts, selected, allLabel, total }) {
   const href = (id) => url(env, `${path}${id ? `?set=${id}` : '?set=all'}`);
 
+  /* No chip here is ever `isDefault`. On /events and /decks the no-choice
+     default is the newest set, not "All" — so an active "All decks" is an
+     explicit choice and earns the accent. */
   const pill = (id, label, count, isActive) =>
-    `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(href(id))}"${
-      isActive ? ' aria-current="true"' : ''
-    }>${esc(label)}${count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`}</a>`;
+    chipLink({ href: href(id), label, count, isActive });
 
   const pills = [
     pill('', allLabel, total, !selected),

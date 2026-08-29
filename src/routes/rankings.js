@@ -19,6 +19,7 @@
 
 import {
   adSlot,
+  chipLink,
   esc,
   formatDate,
   htmlResponse,
@@ -36,26 +37,11 @@ import {
   topMovers,
 } from '../lib/queries.js';
 import { cardMark } from '../lib/images.js';
+import { PRINTING_LABELS, printingOf } from '../lib/vocab.js';
 
 /** How many rows each board shows before deferring to /cards. */
 const BOARD_ROWS = 25;
 const MOVER_ROWS = 8;
-
-/** Printing groups, named the way players talk about them — as on /cards. */
-const PRINTING_LABELS = {
-  standard: 'Standard',
-  showcase: 'Showcase',
-  signature: 'Signature',
-  promo: 'Promo',
-};
-
-/** The printing a card belongs to, from the variant the catalogue records. */
-function printingOf(card) {
-  if (card.variant === '') return 'standard';
-  if (card.variant === 'a') return 'showcase';
-  if (card.variant === 'star') return 'signature';
-  return 'promo';
-}
 
 /** Build a /rankings URL with one filter changed. */
 function filterUrl(env, current, change) {
@@ -67,11 +53,15 @@ function filterUrl(env, current, change) {
 }
 
 function chip(env, current, change, label, count, isActive) {
-  return `<a class="chip${isActive ? ' is-on' : ''}" href="${esc(
-    filterUrl(env, current, change),
-  )}"${isActive ? ' aria-current="true"' : ''}>${esc(label)}${
-    count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`
-  }</a>`;
+  return chipLink({
+    href: filterUrl(env, current, change),
+    label,
+    count,
+    isActive,
+    // Same rule as /cards: an "All" chip that is on because nobody chose
+    // anything does not get the accent fill.
+    isDefault: Object.values(change).every((v) => v === ''),
+  });
 }
 
 /** The matching /cards view, so a board is always one click from the full list. */

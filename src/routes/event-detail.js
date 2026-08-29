@@ -6,6 +6,7 @@ import {
   htmlResponse,
   layout,
   money,
+  ordinal,
   notFound,
   placeLabel,
   url,
@@ -13,7 +14,6 @@ import {
 import { getEvent, getEventDecks, latestPriceDate } from '../lib/queries.js';
 import { legendMark } from '../lib/images.js';
 
-const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 export async function onRequestGet({ env, params }) {
   const slug = params.slug;
@@ -49,7 +49,7 @@ export async function onRequestGet({ env, params }) {
           const unpriced = Number(d.distinct_cards ?? 0) - Number(d.priced_cards ?? 0);
           return `<tr>
             <td data-label="Place"><span class="place place-${esc(d.placement)}">${esc(
-              ORDINALS[d.placement] ?? d.placement,
+              ordinal(d.placement),
             )}</span></td>
             <td data-label="Player">
               <a class="strong-link" href="${esc(url(env, `/decks/${d.id}`))}">${esc(

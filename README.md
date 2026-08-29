@@ -59,6 +59,7 @@ src/index.js             router — maps paths to route modules
 src/lib/render.js        layout, base-path links, disclaimer, ad slots
 src/lib/sections.js      the nav/router/sitemap registry — one entry per section
 src/lib/queries.js       all SQL, including live deck-cost calculation
+src/lib/vocab.js         reader-facing names for the catalogue values (colours, printings)
 src/routes/*.js          one module per page
 src/routes/planned.js    the page shown for a section that is not built yet
 src/lib/images.js        R2 image paths, and the shared card cell with its hover art

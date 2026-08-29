@@ -18,14 +18,7 @@
  * anything across a navigation and every filter click is a navigation.
  */
 
-import {
-  adSlot,
-  esc,
-  htmlResponse,
-  layout,
-  money,
-  url,
-} from '../lib/render.js';
+import { adSlot, chipLink, esc, htmlResponse, layout, money, url } from '../lib/render.js';
 import {
   cardFacets,
   countCards,
@@ -34,27 +27,9 @@ import {
   printingFacets,
 } from '../lib/queries.js';
 import { cardImageSrc } from '../lib/images.js';
+import { COLOR_LABELS, PRINTING_LABELS, domainIconSrc } from '../lib/vocab.js';
 
 const PER_PAGE = 50;
-
-/** Colour names as printed, from the lowercase values the catalogue stores. */
-const COLOR_LABELS = {
-  body: 'Body',
-  calm: 'Calm',
-  chaos: 'Chaos',
-  fury: 'Fury',
-  mind: 'Mind',
-  order: 'Order',
-  colorless: 'Colourless',
-};
-
-/** Printing groups, named the way players talk about them. */
-const PRINTING_LABELS = {
-  standard: 'Standard',
-  showcase: 'Showcase',
-  signature: 'Signature',
-  promo: 'Promo',
-};
 
 /**
  * Sort orders, in the menu's own order. `price` is the default and is never
@@ -82,16 +57,6 @@ const SORT_LABELS = Object.fromEntries(SORTS);
  */
 const ADVANCED_KEYS = ['rarity', 'printing', 'priced'];
 
-/**
- * Icon for a domain, cut from that domain's Rune card by
- * scripts/make-domain-icons.mjs. Colourless has no Rune card and so no icon —
- * callers fall back to the label alone rather than showing a gap.
- */
-const DOMAINS_WITH_ICONS = new Set(['body', 'calm', 'chaos', 'fury', 'mind', 'order']);
-function domainIcon(env, faction) {
-  return DOMAINS_WITH_ICONS.has(faction) ? url(env, `/domain-${faction}.png`) : null;
-}
-
 /** Build a /cards URL carrying the current filters, with one of them changed. */
 function filterUrl(env, current, change) {
   const next = { ...current, ...change };
@@ -106,28 +71,18 @@ function filterUrl(env, current, change) {
   return url(env, `/cards${query ? `?${query}` : ''}`);
 }
 
-/**
- * One filter chip.
- *
- * A chip that is on gets the solid accent fill — but only when it represents a
- * choice the reader actually made. The "All" chips are on by default on a page
- * nobody has touched yet, and filling six of them with the brightest colour in
- * the palette spends the accent on the absence of a filter. They get a quiet
- * outline instead, so the green on the page always means "you narrowed this".
- *
- * Detected rather than declared: an "All" chip is the one whose change clears
- * its key, so there is no flag to pass and no call site that can forget it.
- */
-function filterButton(env, current, change, label, count, isActive, iconSrc) {
-  const isDefault = Object.values(change).every((v) => v === '');
-  const state = isActive ? (isDefault ? ' is-default' : ' is-on') : '';
-  return `<a class="chip${state}" href="${esc(
-    filterUrl(env, current, { ...change, page: 1 }),
-  )}"${isActive ? ' aria-current="true"' : ''}>${
-    iconSrc ? `<img class="chip-icon" src="${esc(iconSrc)}" width="16" height="16" alt=""/>` : ''
-  }${esc(label)}${
-    count === undefined ? '' : `<span class="chip-count">${esc(count)}</span>`
-  }</a>`;
+/** A filter chip for this page: markup from chipLink, URL policy from here. */
+function filterButton(env, current, change, label, count, isActive, icon) {
+  return chipLink({
+    href: filterUrl(env, current, { ...change, page: 1 }),
+    label,
+    count,
+    isActive,
+    // An "All" chip is the one whose change clears its key. Detected rather
+    // than declared, so no call site can forget it.
+    isDefault: Object.values(change).every((v) => v === ''),
+    icon,
+  });
 }
 
 function cardTile(env, c) {
@@ -150,8 +105,8 @@ function cardTile(env, c) {
         <span class="tile-name">${esc(c.name)}</span>
         <span class="tile-meta">${esc(code)}</span>
         <span class="tile-set">${
-          domainIcon(env, c.faction)
-            ? `<img class="tile-domain" src="${esc(domainIcon(env, c.faction))}" width="14" height="14"
+          domainIconSrc(env, c.faction)
+            ? `<img class="tile-domain" src="${esc(domainIconSrc(env, c.faction))}" width="14" height="14"
                    alt="${esc(c.faction)}" loading="lazy"/>`
             : ''
         }${esc(c.set_name || c.set_id)}</span>
@@ -210,7 +165,7 @@ export async function onRequestGet({ request, env }) {
         COLOR_LABELS[c.v] ?? c.v,
         c.n,
         current.color === c.v,
-        domainIcon(env, c.v),
+        domainIconSrc(env, c.v),
       ),
     ),
   ].join('');

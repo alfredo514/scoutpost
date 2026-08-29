@@ -27,6 +27,7 @@ import {
   htmlResponse,
   layout,
   money,
+  ordinalSuffix,
   url,
 } from '../lib/render.js';
 import { deckEraCounts, latestPriceDate, listDecks, setEras } from '../lib/queries.js';
@@ -40,17 +41,6 @@ import { legendMark } from '../lib/images.js';
  * table, which says how many and links to the full list.
  */
 const DEFAULT_ERA = 'newest';
-
-/**
- * Ordinal suffix for a top-8 placement.
- *
- * Only ever 1–8 here, so this is the whole rule rather than the general case
- * with its 11th/12th/13th exceptions. It is rendered as a separate span the
- * desktop column hides: "Place | 1" reads correctly as a column, and "1st
- * Place" reads correctly as a line of inline metadata.
- */
-const ORDINAL_SUFFIX = { 1: 'st', 2: 'nd', 3: 'rd' };
-const ordinal = (n) => ORDINAL_SUFFIX[n] ?? 'th';
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
@@ -100,7 +90,7 @@ export async function onRequestGet({ request, env }) {
             </td>
             <td data-label="Date" class="cell-date">${esc(formatDate(d.event_date))}</td>
             <td data-label="Place" class="num cell-place">${esc(d.placement)}${
-              `<span class="unit">${esc(ordinal(d.placement))} Place</span>`
+              `<span class="unit">${esc(ordinalSuffix(d.placement))} Place</span>`
             }</td>
             <td data-label="Cards" class="num cell-cards">${esc(
               d.card_count ?? 0,
