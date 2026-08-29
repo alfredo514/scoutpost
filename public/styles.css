@@ -865,11 +865,7 @@ body::after {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-@media (max-width: 560px) {
-  /* On a phone the label would eat a whole row; the pills carry the meaning. */
-  .era-filter .filter-label { width: auto; }
-  .era-filter { gap: .5rem; }
-}
+
 
 /* ───────────────────────── Card detail ─────────────────────────
  * Art on one side, the card's words on the other. The text pane is not
@@ -1123,3 +1119,156 @@ body::after {
 .tile-body { display: flex; flex-direction: column; gap: .22rem; padding: .1rem .1rem 0; }
 .tile-art { margin-bottom: .55rem; }
 .tile-price { margin-top: .18rem; }
+
+/* ───────────────── Decks on a phone ─────────────────
+ *
+ * Two changes, both below 720px, both CSS-only from the desktop markup.
+ */
+
+/* The set filter becomes a swipe rather than a wrap.
+ *
+ * Five set pills plus "All decks" wrapped onto three lines on a phone and
+ * pushed the first decklist off the screen. One non-wrapping row that scrolls
+ * sideways costs one line, and the row is the same control it always was —
+ * still links, still no script.
+ *
+ * The negative margin bleeds the strip to the panel's edges so a pill is cut
+ * off at the boundary rather than sitting neatly inside it: that clipped pill
+ * is the only affordance telling anyone there is more to the right. The
+ * scrollbar is hidden because on a touch device it is a smear rather than a
+ * control — the site nav already does exactly this.
+ *
+ * Applies to /events too. It is one shared component and the two filters are
+ * deliberately the same control; splitting them to change one would be worse. */
+@media (max-width: 720px) {
+  /* Block, not a column flex container. As a flex item the chips row sizes
+     itself on the cross axis from its own min-content width, so a nowrap row
+     of pills grows past the panel instead of scrolling inside it —
+     `overflow-x` never gets the chance to engage. A plain block child takes
+     the parent's width and the scroll container works. */
+  .era-filter {
+    display: block;
+    padding: .7rem 0;
+  }
+  .era-filter .filter-label {
+    display: block; width: auto;
+    padding: 0 .9rem; margin-bottom: .5rem;
+  }
+  .era-filter .chips {
+    display: flex;
+    width: 100%; max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    margin: 0; padding: .15rem .9rem;
+  }
+  .era-filter .chips::-webkit-scrollbar { display: none; }
+  .era-filter .chip { flex: none; white-space: nowrap; scroll-snap-align: start; }
+}
+
+/* The decks table becomes a stack of cards.
+ *
+ * The site's generic stacked-table fallback gives every cell its own "LABEL …
+ * value" row. That is right for a table whose columns are unrelated, and wrong
+ * here: six rows per deck fits about four decks on a phone screen, and five of
+ * the six labels are noise once you have seen one. The grid below puts the
+ * same six cells into the shape someone actually reads —
+ *
+ *     [art]  Deck name              $270.82
+ *            Player
+ *     1st Place • 66 Cards • Aug 23, 2026
+ *     Event name
+ *
+ * — with the cost anchored top-right against the name, because the cost is
+ * what this site is for and it is the column people scan.
+ *
+ * It is a grid rather than nested markup because the cells must stay <td>s:
+ * the desktop table is the same DOM, and a real table is the right element for
+ * six comparable columns. */
+@media (max-width: 720px) {
+  .data-table--decks tr {
+    display: grid;
+    grid-template-columns: max-content max-content 1fr max-content;
+    grid-template-areas:
+      "deck  deck  deck  cost"
+      "place cards date  date"
+      "event event event event";
+    align-items: start;
+    gap: .1rem .45rem;
+    padding: .75rem .85rem;
+  }
+
+  /* Undo the generic stacked-cell treatment for this table only. */
+  .data-table--decks td {
+    display: block;
+    border-bottom: none;
+    padding: 0;
+    text-align: left;
+  }
+  .data-table--decks td::before { content: none; }
+  .data-table--decks .card-name,
+  .data-table--decks .card-code,
+  .data-table--decks .legend { text-align: left; }
+
+  .data-table--decks .cell-deck  { grid-area: deck; min-width: 0; }
+  .data-table--decks .cell-cost  { grid-area: cost; justify-self: end; text-align: right; }
+  .data-table--decks .cell-place { grid-area: place; }
+  .data-table--decks .cell-cards { grid-area: cards; }
+  .data-table--decks .cell-date  { grid-area: date; }
+  .data-table--decks .cell-event { grid-area: event; }
+
+  /* Art leads the card, so the thumb goes back to the left and the row reads
+   * left to right. The generic mobile rule reverses these for label/value
+   * rows, which this table no longer has. */
+  .data-table--decks .card-cell {
+    justify-content: flex-start; gap: .6rem; margin-top: 0;
+  }
+  .data-table--decks .card-thumb { order: 0; width: 40px; height: 56px; flex: none; }
+  .data-table--decks .card-text { order: 0; min-width: 0; }
+  .data-table--decks .strong-link { font-size: .98rem; font-weight: 700; }
+  .data-table--decks .legend { font-size: .8rem; margin-top: .1rem; }
+
+  .data-table--decks .cost { font-size: 1rem; white-space: nowrap; }
+
+  /* The inline metadata line. The units are hidden on a desktop, where the
+   * column heading already says "Place"; here they are the sentence. */
+  .data-table--decks .cell-place,
+  .data-table--decks .cell-cards,
+  .data-table--decks .cell-date {
+    margin-top: .5rem;
+    font-family: var(--mono); font-size: .72rem;
+    color: var(--text-dim); font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .data-table--decks .cell-place::after,
+  .data-table--decks .cell-cards::after {
+    content: "•"; color: var(--line); margin-left: .45rem;
+  }
+
+  .data-table--decks .cell-event {
+    margin-top: .5rem; padding-top: .5rem;
+    border-top: 1px solid var(--line-soft);
+    font-size: .84rem;
+  }
+  .data-table--decks .cell-event a { color: var(--text-mid); }
+
+  .data-table--decks .empty-cell { grid-area: deck; }
+}
+
+/* "Place"/"Cards" spelled out. Hidden wherever a column heading already says
+ * it, which is every viewport that still renders a real table. */
+.unit { display: none; }
+@media (max-width: 720px) {
+  .data-table--decks .unit { display: inline; }
+}
+
+/* One sentence, two lengths. The phone gets the short one so the first
+ * decklist clears the fold; there is no truncation and no ellipsis, because a
+ * cut-off sentence reads as a bug. */
+.lede-short { display: none; }
+@media (max-width: 720px) {
+  .lede-long { display: none; }
+  .lede-short { display: inline; }
+}

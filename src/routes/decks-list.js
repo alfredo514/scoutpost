@@ -1,3 +1,23 @@
+/**
+ * /decks — every imported decklist, ranked by build cost.
+ *
+ * One table serves two layouts. On a desktop it is a table, because six
+ * comparable columns across sixty rows is exactly what a table is for. Below
+ * 720px it becomes a stack of cards — CSS only, from the same markup, so there
+ * is no second template to keep in sync and no JavaScript.
+ *
+ * The generic stacked-table fallback the rest of the site uses (a "LABEL …
+ * value" row per cell) is wrong for this table specifically: six labelled rows
+ * per deck means about four decks per phone screen, and five of the six labels
+ * are noise once you know the shape. `.data-table--decks` opts this table out
+ * of that fallback and into a grid instead — see the card layout in styles.css.
+ *
+ * The cells carry `cell-*` classes for that grid, and the units ("Place",
+ * "Cards") are marked up as `.unit` spans that only the card layout reveals,
+ * so a column headed "Place" still reads "1" on a desktop and "1st Place" on a
+ * phone from one string in one place.
+ */
+
 import {
   adSlot,
   eraFilterBar,
@@ -20,6 +40,17 @@ import { legendMark } from '../lib/images.js';
  * table, which says how many and links to the full list.
  */
 const DEFAULT_ERA = 'newest';
+
+/**
+ * Ordinal suffix for a top-8 placement.
+ *
+ * Only ever 1–8 here, so this is the whole rule rather than the general case
+ * with its 11th/12th/13th exceptions. It is rendered as a separate span the
+ * desktop column hides: "Place | 1" reads correctly as a column, and "1st
+ * Place" reads correctly as a line of inline metadata.
+ */
+const ORDINAL_SUFFIX = { 1: 'st', 2: 'nd', 3: 'rd' };
+const ordinal = (n) => ORDINAL_SUFFIX[n] ?? 'th';
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
@@ -51,7 +82,7 @@ export async function onRequestGet({ request, env }) {
     ? decks
         .map(
           (d) => `<tr>
-            <td data-label="Deck">
+            <td data-label="Deck" class="cell-deck">
               ${legendMark(
                 env,
                 d,
@@ -64,13 +95,19 @@ export async function onRequestGet({ request, env }) {
                 }`,
               )}
             </td>
-            <td data-label="Event">
+            <td data-label="Event" class="cell-event">
               <a href="${esc(url(env, `/events/${d.event_slug}`))}">${esc(d.event_name)}</a>
             </td>
-            <td data-label="Date">${esc(formatDate(d.event_date))}</td>
-            <td data-label="Place" class="num">${esc(d.placement)}</td>
-            <td data-label="Cards" class="num">${esc(d.card_count ?? 0)}</td>
-            <td data-label="Build cost" class="num"><span class="cost">${money(d.total_cost)}</span></td>
+            <td data-label="Date" class="cell-date">${esc(formatDate(d.event_date))}</td>
+            <td data-label="Place" class="num cell-place">${esc(d.placement)}${
+              `<span class="unit">${esc(ordinal(d.placement))} Place</span>`
+            }</td>
+            <td data-label="Cards" class="num cell-cards">${esc(
+              d.card_count ?? 0,
+            )}<span class="unit"> Cards</span></td>
+            <td data-label="Build cost" class="num cell-cost"><span class="cost">${money(
+              d.total_cost,
+            )}</span></td>
           </tr>`,
         )
         .join('')
@@ -81,10 +118,13 @@ export async function onRequestGet({ request, env }) {
   const body = `
 <div class="page-head">
   <h1>Decks</h1>
+  ${/* Two versions of the same sentence, one shown per breakpoint. The phone
+       gets the short one so the first decklist clears the fold; the price date
+       moved out of here entirely, to the note under the table. */ ''}
   <p class="lede">
-    Every imported top-8 decklist with a live build cost.
-    ${activeEra ? `Showing decks played under <b>${esc(activeEra.name)}</b>.` : ''}
-    ${priceDate ? `Prices as of ${esc(formatDate(priceDate))}.` : ''}
+    <span class="lede-long">Every imported top-8 decklist with a live build cost.</span>
+    <span class="lede-short">Top-8 decklists, priced daily.</span>
+    ${activeEra ? `Showing <b>${esc(activeEra.name)}</b>.` : ''}
   </p>
 </div>
 
@@ -102,7 +142,7 @@ ${eraFilterBar(env, {
 ${adSlot('leaderboard')}
 
 <div class="table-wrap">
-  <table class="data-table" id="deck-table">
+  <table class="data-table data-table--decks" id="deck-table">
     <thead>
       <tr>
         <th scope="col">Deck</th>
@@ -122,7 +162,15 @@ ${hiddenByFilterNote(env, {
   total: totalDecks,
   shown: decks.length,
   noun: 'deck',
-})}`;
+})}
+
+${
+  priceDate
+    ? `<p class="source-note">Build costs use TCGplayer market prices from ${esc(
+        formatDate(priceDate),
+      )}.</p>`
+    : ''
+}`;
 
   return htmlResponse(
     layout(env, {

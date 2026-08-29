@@ -893,3 +893,88 @@ It reorders what you have rather than changing what you have, so it sits
 opposite the result count as a single control instead of a row of eight chips.
 The panel is a list of real links, so every sort order is still a shareable URL
 and the default sort still renders as a bare `/cards`.
+
+---
+
+## 20. /decks on a phone: one DOM, two layouts
+
+Changed 2026-08-29. A decklist row went from **330px to 166px** on a 375px
+screen — from 2.5 decks per phone screen to 4.9 — with no second template and
+no JavaScript.
+
+### The generic stacked-table fallback was the wrong shape here
+
+Every table on this site collapses below 720px into a "LABEL … value" row per
+cell (`.data-table td::before { content: attr(data-label) }`). That is right
+for a table whose columns are unrelated, and wrong for /decks: six labelled
+rows per deck, five of whose labels are noise once you have seen one.
+
+`.data-table--decks` opts that one table out and into a CSS grid instead:
+
+    [art]  Deck name              $270.82
+           Player
+    1st Place • 66 Cards • Aug 23, 2026
+    Event name
+
+Same six `<td>`s, placed by `grid-template-areas`. The cells stay `<td>`s
+deliberately — the desktop view is the same DOM, and a real table is the right
+element for six comparable columns. **Other tables are untouched**; /events
+still uses the stacked fallback, which suits it.
+
+The cost is anchored top-right against the deck name because the cost is what
+this site is for and it is the column people scan.
+
+### The units are a span the desktop hides
+
+`<td class="cell-place">1<span class="unit">st Place</span></td>`. A column
+headed "Place" should read `1`; a line of inline metadata should read
+`1st Place`. One string, one place, `.unit { display: none }` until 720px.
+
+### A nowrap row inside a column flex container will NOT scroll
+
+This one cost real time and is the reason this section exists.
+
+The set filter's pills were made a single horizontally scrollable row. The
+obvious implementation — make `.era-filter` a column flex container, give
+`.chips` `flex-wrap: nowrap; overflow-x: auto` — **silently does not work**.
+As a flex item, the chips row takes its cross-axis size from its own
+min-content width, so a nowrap row of pills grows *past* the panel instead of
+scrolling inside it, and `overflow-x` never gets the chance to engage. Measured:
+`scrollWidth === clientWidth === 541` inside a 375px container, no scrollbar,
+content simply overflowing the page.
+
+`min-width: 0` does not fix it — that governs the main axis, and the main axis
+here is vertical.
+
+The fix is to stop using flex for the stack: `.era-filter { display: block }`
+with a block-level `.chips` that is itself the flex container. A block child
+takes the parent's width, and the scroll container then works. Verified from
+320px to 560px: `scrollWidth 541` against `clientWidth 281–521`, scrollbar
+hidden.
+
+The strip is padded rather than inset so a pill is clipped at the panel edge —
+that clipped pill is the only affordance saying there is more to the right.
+The site nav already does exactly this; the two are worth keeping consistent.
+
+**This applies to /events as well**, because `eraFilterBar()` is one shared
+component and the two filters are deliberately the same control. Splitting them
+to change one would be the worse trade.
+
+### The intro is two sentences, not a truncation
+
+`.lede-long` / `.lede-short`, one shown per breakpoint. No ellipsis: a
+cut-off sentence reads as a bug rather than as a design. The price date left
+the lede entirely for a `.source-note` under the table — **on every viewport**,
+not just mobile, because rendering the same fact twice in one DOM to show one
+copy per breakpoint is how the two drift apart.
+
+### Verifying this is awkward from the agent browser
+
+The Browser pane **pins the layout viewport at its own width** (560px here).
+`resize_window` moves `documentElement.clientWidth` but `window.innerWidth`
+stays put, so emulated phone widths do not actually reflow the page and
+`scrollWidth > clientWidth` reads as a false overflow.
+
+Set an explicit width on `main.wrap` from the console and measure at 320 /
+375 / 430 instead. That reflows for real. It is how the numbers above were
+taken, and it is the only reliable narrow-width check available here.
