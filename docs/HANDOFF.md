@@ -876,6 +876,38 @@ not navigate. Verify a disclosure by setting `.open` from the console and
 checking `checkVisibility()`, or open the page by hand. `getBoundingClientRect`
 is the wrong probe: a closed `<details>` still reports a box for its contents.
 
+### The filter panel is a two-column grid, and the labels are right-aligned
+
+`.filters` is `display: grid` with `auto minmax(0, 1fr)`, and `.filter-row`
+is `display: contents` so each row's label and chips become items of that one
+grid. The label column then sizes to the longest label in the panel and every
+row shares it.
+
+The labels are **right-aligned**, which is the part worth keeping. A shared
+column is what aligns the rows vertically, but left-aligned it stranded a short
+label: measured on the live page, "SET" sat 56px from its own pills while
+"COLOUR" sat 33px away, so the pills read as belonging to neither. Ending every
+label flush against the pill column makes the gap **11px on all six rows**. The
+old fixed `width: 4.2rem` on `.filter-label` is what produced the variance.
+
+### The disclosure is a bar across the foot of the panel
+
+It was a muted 11px label under the last filter row — indistinguishable from a
+caption, and read as one. It is now full-bleed with its own `--surface-2` fill
+and a hover state.
+
+Two things this depends on:
+
+- **The `<details>` must be the last child of `.filters`.** "Reset everything"
+  was moved above it in `cards.js` for that reason (and reads better there,
+  next to the filters it clears). If anything is ever appended after the
+  disclosure, the bar stops being a foot and starts being a divider.
+- `.filters` keeps its own bottom padding and the bar cancels it with a
+  negative bottom margin, because **/rankings uses the same `.filters` panel
+  with no disclosure in it**. Removing that padding instead left the last row of
+  rankings chips 1px off the panel edge — caught in review, worth remembering
+  that this panel has two callers.
+
 ### The accent means "you narrowed this"
 
 `.chip.is-on` fills with lime. That was also being applied to the six "All"
@@ -893,6 +925,12 @@ It reorders what you have rather than changing what you have, so it sits
 opposite the result count as a single control instead of a row of eight chips.
 The panel is a list of real links, so every sort order is still a shareable URL
 and the default sort still renders as a bare `/cards`.
+
+The trigger reads in normal text, not the accent. Setting the current sort in
+lime put the brightest colour in the palette on a control nobody had touched —
+the same mistake the "All" chips were making. The accent is kept for hover, for
+the open state, and for the tick on the chosen row inside the panel. That tick
+is also why the chosen row does not depend on colour alone to be identifiable.
 
 ---
 

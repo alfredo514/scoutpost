@@ -656,17 +656,37 @@ body::after {
  * is what they behave like; `aria-current` carries the active state to a screen
  * reader, since colour alone would not. */
 
+/* A two-column grid, not a stack of flex rows with a fixed-width label.
+ *
+ * The label column was 4.2rem wide regardless of what was in it, so "SET" sat
+ * in a 67px box next to a 26px word and its pills started a clear 40px away
+ * from their own heading — near enough to the pills of the row above to read
+ * as unrelated to either. `auto` sizes the column to the longest label in this
+ * panel and every row shares it, so the labels stay aligned with each other
+ * while the pills sit right after the longest of them.
+ *
+ * `.filter-row` is display:contents so its label and chips become items of the
+ * outer grid; the row element itself is a grouping for the markup, not a box. */
 .filters {
-  display: flex; flex-direction: column; gap: .55rem;
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  column-gap: .7rem; row-gap: .55rem;
+  align-items: baseline;
   padding: .95rem 1.05rem; margin-bottom: 1.6rem;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
+  overflow: hidden;  /* clips the full-bleed toggle to the panel's corners */
 }
-.filter-row { display: flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
+.filter-row { display: contents; }
 .filter-label {
   font-family: var(--mono); font-size: .68rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
-  flex: none; width: 4.2rem;
+  white-space: nowrap;
+  /* Right-aligned so every label ENDS against the pill column rather than
+   * starting against it. A shared column keeps the rows aligned vertically,
+   * but left-aligned it left a short label like SET stranded 35px from its own
+   * pills while COLOUR sat 11px away. Ending them flush makes the gap the same
+   * on every row, which is the whole point of having a column. */
+  text-align: right;
 }
 .chips { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; min-width: 0; }
 
@@ -928,9 +948,20 @@ body::after {
  * refinements: worth having, not worth three permanent rows above the grid.
  * The server sets the open attribute whenever one of them is doing work, because a
  * <details> cannot survive the navigation that a filter click causes. */
+/* A bar across the foot of the panel, not a line of small print.
+ *
+ * This was a muted 11px label sitting under the last filter row, which is
+ * indistinguishable from a caption — people did not read it as something they
+ * could open. It is now the full width of the panel with its own fill and a
+ * hover state, so it reads as the control it is. The negative margins cancel
+ * the panel's padding; `.filters` clips the corners. */
 .filters-more {
-  border-top: 1px solid var(--line-soft);
-  padding-top: .55rem; margin-top: .15rem;
+  grid-column: 1 / -1;
+  /* Bleeds through the panel padding on three sides so the bar meets its
+   * edges. The panel keeps its own bottom padding for /rankings, which uses
+   * the same panel with no disclosure in it. */
+  margin: .4rem -1.05rem -.95rem;
+  border-top: 1px solid var(--line);
 }
 /* The <summary> stays a plain block and every bit of layout lives on the inner
  * .filters-more-trigger. Setting display:flex directly on a <summary> has
@@ -938,17 +969,22 @@ body::after {
  * not a thing to be clever about. width:max-content keeps the clickable area
  * matched to what is drawn. */
 .filters-more > summary {
-  display: block; width: max-content;
+  display: block;
   cursor: pointer; list-style: none;
-  padding: .15rem 0;
+  padding: .62rem 1.05rem;
+  background: var(--surface-2);
+  transition: background var(--snap);
 }
+.filters-more > summary:hover { background: #17331f; }
 .filters-more > summary::-webkit-details-marker { display: none; }
 .filters-more-trigger {
-  display: inline-flex; align-items: baseline; gap: .5rem;
-  font-family: var(--mono); font-size: .68rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
+  display: flex; width: 100%; align-items: center; gap: .5rem;
+  font-family: var(--mono); font-size: .7rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--text-mid);
   transition: color var(--snap);
 }
+/* The hint and the "N on" badge sit at the far end of the bar. */
+.filters-more-hint, .filters-more .chip-count { margin-left: auto; }
 .filters-more > summary:hover .filters-more-trigger { color: var(--text-mid); }
 .filters-more > summary:focus-visible .filters-more-trigger {
   outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius-sm);
@@ -961,9 +997,15 @@ body::after {
 }
 .filters-more[open] .filters-more-label::before { transform: rotate(90deg); }
 .filters-more-hint { text-transform: none; letter-spacing: .02em; opacity: .7; }
+/* Its own grid, matching the outer one, so the advanced labels line up with
+ * each other. They are in a separate box from the three above, so they do not
+ * need to share that box's column. */
 .filters-more-body {
-  display: flex; flex-direction: column; gap: .55rem;
-  padding-top: .55rem;
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  column-gap: .7rem; row-gap: .55rem;
+  align-items: baseline;
+  padding: .7rem 1.05rem .8rem;
+  background: rgba(0, 0, 0, .16);
 }
 
 /* Sort sits opposite the result count, because it reorders what you have
@@ -990,7 +1032,11 @@ body::after {
   text-transform: uppercase; letter-spacing: .1em;
   transition: color var(--snap), border-color var(--snap);
 }
-.sortmenu > summary:hover .sortmenu-trigger { color: var(--text); border-color: #2a5138; }
+.sortmenu > summary:hover .sortmenu-trigger {
+  color: var(--text); border-color: rgba(var(--accent-rgb), .45);
+}
+.sortmenu > summary:hover .sortmenu-current,
+.sortmenu[open] .sortmenu-current { color: var(--accent); }
 .sortmenu > summary:focus-visible .sortmenu-trigger {
   outline: 2px solid var(--focus); outline-offset: 2px;
 }
@@ -998,8 +1044,12 @@ body::after {
   content: "▾"; color: var(--text-dim); transition: transform var(--snap);
 }
 .sortmenu[open] .sortmenu-trigger::after { transform: rotate(180deg); }
+/* The current sort is a value, not an alert. It was set in the accent, which
+ * put the brightest colour in the palette on a control nobody had touched —
+ * the same mistake the "All" filter chips were making. It reads as normal text
+ * now, and the accent is kept for hover and for the chosen row in the panel. */
 .sortmenu-current {
-  color: var(--accent); text-transform: none; letter-spacing: .02em;
+  color: var(--text); text-transform: none; letter-spacing: .02em;
   font-family: var(--sans); font-size: .8rem; font-weight: 600;
 }
 
@@ -1013,13 +1063,21 @@ body::after {
   box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
 }
 .sortmenu-item {
-  padding: .38rem .55rem; border-radius: var(--radius-sm);
+  position: relative;
+  padding: .38rem .55rem .38rem 1.6rem;
+  border-radius: var(--radius-sm);
   color: var(--text-mid); text-decoration: none;
   font-size: .85rem; font-weight: 600;
   transition: color var(--snap), background var(--snap);
 }
 .sortmenu-item:hover { background: var(--surface-2); color: var(--text); }
+/* The chosen order is the one place in this control the accent belongs, and
+ * the tick carries the same meaning without relying on colour to do it. */
 .sortmenu-item.is-on { color: var(--accent); }
+.sortmenu-item.is-on::before {
+  content: "✓"; position: absolute; left: .55rem;
+  font-size: .8rem; line-height: inherit;
+}
 
 /* On a narrow screen there is no room beside the count, and an absolutely
  * positioned panel would hang off the edge. The menu drops into the flow. */

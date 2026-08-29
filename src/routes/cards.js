@@ -297,7 +297,19 @@ ${/* A GET form, so searching produces a real URL and needs no JavaScript. The
     <div class="chips">${setChips}</div>
   </div>
 
-  ${/* Native <details> — a disclosure with no script behind it. */ ''}
+  ${
+    active.length
+      ? `<div class="filter-row">
+          <span class="filter-label"></span>
+          <a class="chip chip-clear" href="${esc(url(env, '/cards'))}">Reset everything</a>
+        </div>`
+      : ''
+  }
+
+  ${/* Native <details>, and the LAST child of .filters on purpose: the toggle
+       is styled as a full-width bar across the foot of the panel, which only
+       works if nothing follows it. Reset moved above it for that reason — and
+       it reads better there anyway, next to the filters it clears. */ ''}
   <details class="filters-more"${advancedActive ? ' open' : ''}>
     <summary>
       <span class="filters-more-trigger">
@@ -324,15 +336,6 @@ ${/* A GET form, so searching produces a real URL and needs no JavaScript. The
       </div>
     </div>
   </details>
-
-  ${
-    active.length
-      ? `<div class="filter-row">
-          <span class="filter-label"></span>
-          <a class="chip chip-clear" href="${esc(url(env, '/cards'))}">Reset everything</a>
-        </div>`
-      : ''
-  }
 </div>
 
 <div class="section-head section-head--results">
