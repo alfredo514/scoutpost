@@ -322,6 +322,28 @@ real page saying what's coming and linking to what works; it carries
 Nav, footer, styling, sitemap and the noindex all follow automatically. Do not
 add links by hand anywhere — nothing reads a hardcoded nav list any more.
 
+**Planned: end the no-JavaScript rule.** The user decided on 2026-08-29 that
+JavaScript will be added to the site later. Nothing has been added yet — every
+page still ships zero script — but this is now a scheduled change rather than a
+line that must not be crossed, and the first things queued behind it are:
+
+- a **typeahead** on the /decks Legend search (§21), which is the feature that
+  prompted the decision
+- **GA4 events** — `public/analytics.js` is already written and deliberately
+  not loaded; read its header first, because the URL-based approach described
+  there may still be the better answer even once script is allowed
+
+When it happens, these all become false and must be updated in the same commit:
+the header of `public/styles.css`, the "no JavaScript" notes in
+`src/routes/cards.js` and `src/routes/deck-detail.js`, §11 and §13 of this
+document, and the header of `public/analytics.js`.
+
+**Do not treat this as blanket permission.** The properties the rule was
+protecting are real and worth keeping deliberately rather than losing by
+default: filters that are links stay shareable and crawlable, the decklist
+hover previews fetch exactly one image, and every page works with scripting
+off. Add script where it buys something those cannot, not as the default tool.
+
 Smaller open items:
 
 - `robots.txt` lives at the domain root on the **NAS**, not in this repo. It
