@@ -1281,3 +1281,117 @@ body::after {
   .lede-long { display: none; }
   .lede-short { display: inline; }
 }
+
+/* ───────────────── Finding a deck by its Legend ─────────────────
+ *
+ * Players do not look for "the deck that came 3rd at Barcelona", they look for
+ * "the Irelia list". /decks now has three ways in — a search box, a row of
+ * Legend faces, and a badge on every row that is itself a filter link.
+ *
+ * All three are links or a GET form. There is no typeahead, because a
+ * suggestion dropdown that updates as you type needs JavaScript and this site
+ * ships none; a submit gives a real URL instead, which is shareable and works
+ * with scripting off. See §21 of docs/HANDOFF.md.
+ */
+
+.deck-search { margin: 1.1rem 0 .9rem; }
+
+/* The green accent on focus, as asked. Note this is the one place --toxic
+ * appears on something that is neither money nor the primary action; the rest
+ * of the palette's split still holds. */
+.deck-search .search-input:focus {
+  border-color: var(--toxic);
+  box-shadow: 0 0 0 3px rgba(var(--toxic-rgb), .18);
+  outline: none;
+}
+
+.legend-picker {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .7rem 0; margin-bottom: 1.2rem;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px -12px rgba(0, 0, 0, .7);
+  border-radius: var(--radius-lg);
+}
+.legend-picker .filter-label { padding-left: .9rem; flex: none; }
+
+/* One row, always. Twenty-two Legends will never wrap onto four lines and push
+ * the table off the screen — they scroll sideways, with the bar padded rather
+ * than inset so a face is clipped at the edge and says so. Same treatment as
+ * the set filter on a phone and the site nav. */
+.legend-strip {
+  display: flex; gap: .55rem;
+  flex: 1; min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  padding: .2rem .9rem;
+}
+.legend-strip::-webkit-scrollbar { display: none; }
+
+.legend-av {
+  flex: none; scroll-snap-align: start;
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  width: 4.4rem; padding: .15rem 0;
+  text-decoration: none; color: var(--text-dim);
+  transition: color var(--snap);
+}
+.legend-av:hover { color: var(--text); }
+.legend-av:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+/* Card art is a 300x418 portrait and the face sits in the top third, so a
+ * centred circular crop lands on the character's chest. Biasing the crop
+ * upward is what makes these read as portraits rather than as fabric. */
+.legend-av-art {
+  width: 52px; height: 52px; border-radius: 50%;
+  object-fit: cover; object-position: center 20%;
+  background: var(--surface-2);
+  border: 2px solid var(--line);
+  transition: border-color var(--snap), box-shadow var(--snap);
+}
+.legend-av:hover .legend-av-art { border-color: rgba(var(--accent-rgb), .5); }
+
+/* The selected Legend gets the bright ring. */
+.legend-av.is-on .legend-av-art {
+  border-color: var(--toxic);
+  box-shadow: 0 0 0 3px rgba(var(--toxic-rgb), .22), 0 0 16px rgba(var(--toxic-rgb), .35);
+}
+.legend-av.is-on { color: var(--text); }
+
+.legend-av-all {
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim);
+}
+.legend-av-name {
+  font-size: .68rem; font-weight: 600; line-height: 1.15; text-align: center;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.legend-av-n {
+  font-family: var(--mono); font-size: .6rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The badge on a table row. Muted by default so it never competes with the
+ * deck name above it, and a link, because a tag you cannot act on is just the
+ * deck name written twice. */
+.legend-tag {
+  display: inline-block; margin-top: .2rem;
+  padding: .05rem .5rem;
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-dim); text-decoration: none;
+  font-family: var(--mono); font-size: .64rem; font-weight: 600;
+  letter-spacing: .04em; white-space: nowrap;
+  transition: color var(--snap), border-color var(--snap);
+}
+.legend-tag:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .5); }
+
+@media (max-width: 720px) {
+  .legend-picker { gap: .4rem; flex-direction: column; align-items: stretch; }
+  .legend-picker .filter-label { padding: 0 .9rem; }
+  .legend-strip { padding: .1rem .9rem .2rem; }
+  .deck-search { margin: .9rem 0 .8rem; }
+  /* The badge sits under the deck name in the card layout, above the player. */
+  .data-table--decks .legend-tag { margin-top: .25rem; }
+}

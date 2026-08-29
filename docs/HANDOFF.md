@@ -1070,3 +1070,78 @@ stays put, so emulated phone widths do not actually reflow the page and
 Set an explicit width on `main.wrap` from the console and measure at 320 /
 375 / 430 instead. That reflows for real. It is how the numbers above were
 taken, and it is the only reliable narrow-width check available here.
+
+---
+
+## 21. Finding a deck by its Legend
+
+Added 2026-08-29. Players do not look for "the deck that came 3rd at
+Barcelona", they look for "the Irelia list". /decks has three ways in, and all
+three are the same filter expressed differently:
+
+- a **search box** over Legend name and player name (`q`)
+- a **row of Legend faces** (`legend`, matched against `decks.legend` exactly)
+- a **badge on every table row** that is itself a link to that Legend's filter
+
+All three are links or a GET form, so every view is a shareable URL, and all of
+them compose with the existing `set` filter.
+
+### There is no typeahead, and there cannot be one without a decision
+
+The brief asked for a typeahead. A suggestion list that updates as you type
+needs JavaScript, and this site ships none. What is there instead is /cards'
+pattern: type, submit, get a real URL. It is slower by one keystroke and better
+in every other way — shareable, bookmarkable, crawlable, and working with
+scripting off.
+
+If live suggestions are genuinely wanted, that is a deliberate decision to end
+the no-JS property, and it should be made explicitly rather than arrived at.
+
+### `q` and `legend` filter BEFORE the aggregate; `era` filters after
+
+`listDecks` puts `legend` and `q` in a `WHERE` and `era` in a `HAVING`, and
+the difference matters. `era` is derived per group (see §15), so it cannot be
+known until after the `GROUP BY`. The other two filter rows of `decks`
+directly — a `HAVING` there would make the query price and total every deck in
+the database before discarding most of them.
+
+### The avatars are cropped upward on purpose
+
+A Riftbound card is a 300x418 portrait with the character's face in the top
+third. A centred circular crop lands squarely on their chest.
+`object-position: center 20%` is what makes these read as portraits.
+
+Art comes from `legendFacets`, which picks one deck per Legend with
+`ROW_NUMBER` — every deck running a Legend runs the same card, so any of them
+is the right picture, and this avoids a query per Legend. Counts respect the
+set filter, so the row never offers a Legend that would return an empty table.
+
+### The badge is a link, and that is why it is not redundant
+
+The deck's headline is already the Legend's full name, so a badge repeating it
+would be the same string twice. It earns its place by being **actionable**:
+`Legend: Irelia` filters to Irelia. If it is ever made non-interactive, delete
+it instead.
+
+### The green ring is a deliberate exception to the palette rule
+
+§13 reserves `--toxic` for money and the primary action, and `--accent`
+(magenta) for interaction — which would make the active avatar ring and the
+search focus ring magenta, matching the set chips directly above them. They are
+green because the brief asked for green, twice, and it is a taste call rather
+than a correctness one. Swapping `--toxic` for `--accent` in `.legend-av.is-on`
+and `.deck-search .search-input:focus` puts them back in line with the rule.
+
+### GA4: `public/analytics.js` exists and is NOT loaded
+
+Read the header of that file before wiring it up. The short version: **you
+probably do not need it.** Every control here produces a distinct URL, and GA4
+records the full query string on every page_view — "which Legends get filtered
+most" is answerable out of the box from Page path + query string, with no
+script from us and no dependency on the reader having scripting on.
+
+The file holds the explicit event wiring for whoever decides otherwise. Loading
+it means adding the first `<script>` to Scoutpost, at which point the no-JS
+claims in `public/styles.css`, the route headers and this document all become
+false and need updating. That is the actual cost, and it is why the file ships
+disconnected rather than wired.

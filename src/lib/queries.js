@@ -184,9 +184,33 @@ export async function getDeckCards(db, deckId) {
  * A deck's era is its parent event's era, so the same date-derived rule applies
  * and no deck carries a stored set tag.
  */
-export async function listDecks(db, { limit = 100, era = '' } = {}) {
+/**
+ * Decks, newest event first.
+ *
+ * `legend` matches the stored name exactly; `q` is a substring over the legend
+ * and the player, so one box finds "Irelia" and "TheManland" alike. Both are
+ * pre-aggregation WHERE conditions rather than a HAVING like `era`, because
+ * they filter rows of `decks` rather than a value computed per group — a
+ * HAVING here would make the query scan and total every deck before throwing
+ * most of them away.
+ */
+export async function listDecks(db, { limit = 100, era = '', legend = '', q = '' } = {}) {
+  const where = [];
+  const params = [];
+  if (legend) {
+    where.push('d.legend = ?');
+    params.push(legend);
+  }
+  if (q) {
+    where.push('(lower(d.legend) LIKE ? OR lower(d.player_name) LIKE ?)');
+    const like = `%${String(q).toLowerCase()}%`;
+    params.push(like, like);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const filter = era ? 'HAVING era = ?' : '';
-  const params = era ? [era, limit] : [limit];
+  if (era) params.push(era);
+  params.push(limit);
+
   const { results } = await db
     .prepare(
       `WITH ${LATEST_PRICES}
@@ -200,10 +224,51 @@ export async function listDecks(db, { limit = 100, era = '' } = {}) {
          JOIN events e ON e.id = d.event_id
          LEFT JOIN deck_cards dc ON dc.deck_id = d.id
          LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
+         ${clause}
         GROUP BY d.id
         ${filter}
         ORDER BY e.date DESC, d.placement ASC
         LIMIT ?`,
+    )
+    .bind(...params)
+    .all();
+  return results ?? [];
+}
+
+/**
+ * Every Legend that has a deck, with one piece of art and a deck count.
+ *
+ * Drives the avatar row on /decks. The art is taken from whichever deck
+ * happens to sort first for that Legend — every deck running a Legend runs the
+ * same card, so any of them is the right picture, and picking one with
+ * ROW_NUMBER avoids a second query per Legend.
+ *
+ * Counts respect the set filter, so the row never offers a Legend that would
+ * return an empty table in the era being viewed.
+ */
+export async function legendFacets(db, { era = '' } = {}) {
+  const having = era ? 'WHERE era = ?' : '';
+  const params = era ? [era] : [];
+  const { results } = await db
+    .prepare(
+      `WITH per_deck AS (
+         SELECT d.legend, cl.image_thumb_url AS thumb, d.id AS deck_id,
+                ${EVENT_ERA} AS era
+           FROM decks d
+           JOIN events e ON e.id = d.event_id
+           JOIN deck_cards dc ON dc.deck_id = d.id
+           JOIN cards cl ON cl.id = dc.card_id AND cl.card_type = 'Legend'
+       ),
+       scoped AS (SELECT * FROM per_deck ${having}),
+       ranked AS (
+         SELECT legend, thumb,
+                ROW_NUMBER() OVER (PARTITION BY legend ORDER BY deck_id) AS rn,
+                COUNT(*) OVER (PARTITION BY legend) AS n
+           FROM scoped
+       )
+       SELECT legend, thumb, n FROM ranked
+        WHERE rn = 1 AND legend IS NOT NULL AND legend <> ''
+        ORDER BY n DESC, legend ASC`,
     )
     .bind(...params)
     .all();

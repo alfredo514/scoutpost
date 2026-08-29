@@ -30,8 +30,14 @@ import {
   ordinalSuffix,
   url,
 } from '../lib/render.js';
-import { deckEraCounts, latestPriceDate, listDecks, setEras } from '../lib/queries.js';
-import { legendMark } from '../lib/images.js';
+import {
+  deckEraCounts,
+  latestPriceDate,
+  legendFacets,
+  listDecks,
+  setEras,
+} from '../lib/queries.js';
+import { imageKeyFromUrl, legendMark } from '../lib/images.js';
 
 /**
  * Default view: the current set only, matching /events.
@@ -42,10 +48,37 @@ import { legendMark } from '../lib/images.js';
  */
 const DEFAULT_ERA = 'newest';
 
+/**
+ * The champion's own name, which is the part before the comma.
+ *
+ * Riftbound names a Legend "Azir, Emperor of the Sands" — champion, then title.
+ * The full string is the deck's headline; the badge and the avatar row want the
+ * half a player actually says out loud.
+ */
+function championOf(legend) {
+  return String(legend || '').split(',')[0].trim();
+}
+
+/** Build a /decks URL carrying the current filters, with one of them changed. */
+function decksUrl(env, current, change) {
+  const next = { ...current, ...change };
+  const qs = new URLSearchParams();
+  // 'all' is an explicit choice and has to survive, so set is handled by value
+  // rather than by truthiness.
+  if (next.set) qs.set('set', next.set);
+  if (next.legend) qs.set('legend', next.legend);
+  if (next.q) qs.set('q', next.q);
+  const query = qs.toString();
+  return url(env, `/decks${query ? `?${query}` : ''}`);
+}
+
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;
   const eras = await setEras(env.DB);
   const newest = eras[0]?.id ?? '';
+
+  const searchQ = (params.get('q') || '').trim().slice(0, 80);
+  const activeLegend = (params.get('legend') || '').trim().slice(0, 120);
 
   const requested = params.get('set');
   // No parameter means the default; 'all' is an explicit choice, not the
@@ -59,10 +92,14 @@ export async function onRequestGet({ request, env }) {
           ? newest
           : '';
 
-  const [decks, counts, priceDate] = await Promise.all([
-    listDecks(env.DB, { limit: 300, era: selected }),
+  // The era the URL asked for, kept verbatim so links round-trip '?set=all'.
+  const current = { set: requested === 'all' ? 'all' : selected, legend: activeLegend, q: searchQ };
+
+  const [decks, counts, priceDate, legends] = await Promise.all([
+    listDecks(env.DB, { limit: 300, era: selected, legend: activeLegend, q: searchQ }),
     deckEraCounts(env.DB),
     latestPriceDate(env.DB),
+    legendFacets(env.DB, { era: selected }),
   ]);
 
   const totalDecks = Object.values(counts).reduce((a, n) => a + n, 0);
@@ -79,6 +116,12 @@ export async function onRequestGet({ request, env }) {
                 `<a class="strong-link" href="${esc(url(env, `/decks/${d.id}`))}">${esc(
                   d.legend || d.player_name || 'Decklist',
                 )}</a>${
+                  d.legend
+                    ? `<a class="legend-tag" href="${esc(
+                        decksUrl(env, current, { legend: d.legend }),
+                      )}">Legend: ${esc(championOf(d.legend))}</a>`
+                    : ''
+                }${
                   d.player_name && d.legend
                     ? `<span class="legend">${esc(d.player_name)}</span>`
                     : ''
@@ -102,8 +145,76 @@ export async function onRequestGet({ request, env }) {
         )
         .join('')
     : `<tr><td colspan="6" class="empty-cell">
-         No decks played under ${esc(activeEra?.name ?? 'this set')} yet.
+         ${
+           activeLegend || searchQ
+             ? `Nothing matches ${
+                 activeLegend ? `<b>${esc(championOf(activeLegend))}</b>` : ''
+               }${activeLegend && searchQ ? ' and ' : ''}${
+                 searchQ ? `“${esc(searchQ)}”` : ''
+               }${activeEra ? ` in <b>${esc(activeEra.name)}</b>` : ' in any set'}.
+               <a href="${esc(decksUrl(env, current, { legend: '', q: '' }))}">Clear filters</a>.`
+             : `No decks played under ${esc(activeEra?.name ?? 'this set')} yet.`
+         }
        </td></tr>`;
+
+  /* A plain GET form, like /cards. It produces a real URL, so a search is
+     shareable, bookmarkable and works with scripting off — and it is the only
+     kind of search this site can have, since nothing here ships JavaScript.
+     The hidden inputs carry the other filters through a submit. */
+  const searchForm = `
+<form class="search deck-search" method="get" action="${esc(url(env, '/decks'))}" role="search">
+  <label class="sr-only" for="deck-search">Search by Legend or player</label>
+  <input id="deck-search" class="search-input" type="search" name="q"
+         value="${esc(searchQ)}" placeholder="Search by Legend or Player…"
+         autocomplete="off" spellcheck="false"/>
+  ${['set', 'legend']
+    .filter((k) => current[k])
+    .map((k) => `<input type="hidden" name="${k}" value="${esc(current[k])}"/>`)
+    .join('')}
+  <button class="btn btn-primary" type="submit">Search</button>
+  ${
+    searchQ
+      ? `<a class="chip chip-clear" href="${esc(decksUrl(env, current, { q: '' }))}">Clear</a>`
+      : ''
+  }
+</form>`;
+
+  /* Avatars are links, not buttons. Each is a real filtered URL for exactly the
+     same reason the chips above are. Art is cropped to a circle and biased
+     upward, because a Riftbound card puts the character's face in the top
+     third and a centred crop lands on their chest. */
+  const legendRow = legends.length
+    ? `<nav class="legend-picker" aria-label="Filter by Legend">
+    <span class="filter-label">Legend</span>
+    <div class="legend-strip">
+      ${[
+        `<a class="legend-av${activeLegend ? '' : ' is-on'}" href="${esc(
+          decksUrl(env, current, { legend: '' }),
+        )}"${activeLegend ? '' : ' aria-current="true"'}>
+           <span class="legend-av-art legend-av-all" aria-hidden="true">All</span>
+           <span class="legend-av-name">All</span>
+         </a>`,
+        ...legends.map((l) => {
+          const key = imageKeyFromUrl('small', l.thumb);
+          const on = activeLegend === l.legend;
+          const art = key
+            ? `<img class="legend-av-art" src="${esc(url(env, `/card-image/${key}`))}"
+                    width="56" height="56" loading="lazy" decoding="async" alt=""/>`
+            : '<span class="legend-av-art legend-av-all" aria-hidden="true"></span>';
+          return `<a class="legend-av${on ? ' is-on' : ''}" href="${esc(
+            decksUrl(env, current, { legend: on ? '' : l.legend }),
+          )}" title="${esc(l.legend)} — ${esc(l.n)} deck${l.n === 1 ? '' : 's'}"${
+            on ? ' aria-current="true"' : ''
+          }>
+             ${art}
+             <span class="legend-av-name">${esc(championOf(l.legend))}</span>
+             <span class="legend-av-n">${esc(l.n)}</span>
+           </a>`;
+        }),
+      ].join('')}
+    </div>
+  </nav>`
+    : '';
 
   const body = `
 <div class="page-head">
@@ -115,6 +226,7 @@ export async function onRequestGet({ request, env }) {
     <span class="lede-long">Every imported top-8 decklist with a live build cost.</span>
     <span class="lede-short">Top-8 decklists, priced daily.</span>
     ${activeEra ? `Showing <b>${esc(activeEra.name)}</b>.` : ''}
+    ${activeLegend ? `Filtered to <b>${esc(championOf(activeLegend))}</b>.` : ''}
   </p>
 </div>
 
@@ -128,6 +240,10 @@ ${eraFilterBar(env, {
   allLabel: 'All decks',
   total: totalDecks,
 })}
+
+${searchForm}
+
+${legendRow}
 
 ${adSlot('leaderboard')}
 
@@ -172,6 +288,7 @@ ${
         { name: 'Scoutpost', path: '/' },
         { name: 'Decks', path: '/decks' },
       ],
+      robots: activeLegend || searchQ ? 'noindex, follow' : '',
       body,
     }),
   );
