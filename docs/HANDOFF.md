@@ -559,8 +559,59 @@ the source ever becomes photographic, check for banding by eye.
 
 ## 13. The visual language
 
+Retheemed 2026-08-29 to a **Teemo / mushroom** palette. The typographic system
+below is unchanged and is still what carries the site; the colour and geometry
+underneath it were rebuilt. What came before was an instrument look — near
+square corners, acid lime on deep forest green — and it is recoverable from git
+if this ever needs reversing.
+
+### The palette is two spore colours doing two different jobs
+
+This is the rule to keep. Everything else here is taste.
+
+| Token | Value | Means |
+|---|---|---|
+| `--accent` | `#C77DFF` poison magenta | **interaction** — the filter you chose, the link under your pointer, the row you are on |
+| `--toxic` | `#A3E635` toxic green | **money and the primary action** — every price, and the Search button |
+
+Keeping them apart is what stops the palette becoming decoration: one colour
+says "you did this", the other says "this is the number you came for". If a new
+element needs a colour, decide which of those two things it is. A price is
+never magenta and a hover state is never toxic.
+
+`--neg` is `#F2704E`, a warm ember, and it had to move: it used to be pink,
+which is now indistinguishable from the accent. It marks a falling price and a
+destructive action.
+
+Surfaces are `--bg #0A1410` (forest floor) with panels a lighter muddy
+green-grey at `--surface #16241C`. Text is `--text #F4EFE6`, a mushroom-cap
+cream rather than white.
+
+**Contrast was measured, not eyeballed.** Every text pair on /cards is at or
+above 4.5:1 — the tightest is the small uppercase `.filter-label` at 5.54, and
+`--text-dim` was lightened from `#8B8577` to `#9D9789` specifically because
+the first draft put it at 4.39 against `--surface`. Check that number if you
+darken any surface or dim any text.
+
+### Geometry
+
+- **`--radius: 6px`, `--radius-lg: 16px`, `--radius-pill: 999px`.** Anything
+  you press or type into — filter chips, buttons, the search field — is fully
+  round. Panels and card tiles use `--radius-lg`.
+- This **reverses** the earlier `--radius: 3px` decision, which was recorded
+  here as "soft corners read as a template; near square reads as a panel on a
+  device". That was right for the instrument look and is simply not what this
+  theme is after. Setting `--radius` back to `3px` undoes most of it.
+- The filter panel and the set-filter bar have **no border** — a transparent
+  1px border holds the box model, and a soft two-layer shadow does the
+  separating. The hairline outline is what made them read as boxed-off forms.
+- The Search button carries an outer bloom plus two inset shadows, so it reads
+  as lit from within rather than as a flat swatch.
+
+### What did not change
+
 **A scouting instrument, not a dashboard.** The site reports on a competitive
-format and prices it, so the design language is measurement.
+format and prices it, so the typography is still measurement.
 
 | Role | Face | Used for |
 |---|---|---|
@@ -575,15 +626,13 @@ before this, every `font-family` in the stylesheet was the system stack.
 
 Other deliberate choices:
 
-- **`--radius: 3px`**, down from 10px. Soft corners read as a template; near
-  square reads as a panel on a device. `--radius-lg` exists for the few places
-  something should feel like a card.
 - **`--snap: 90ms cubic-bezier(.2,.8,.2,1)`** on every transition. Snappy means
   short and decisive, not absent.
 - **Grain** — one inline SVG turbulence on `body::after` at 4% opacity. No
   request, no image decode, `pointer-events: none`.
-- **A lime tick** before each section heading, and an accent edge on the
-  headline cost card.
+- **A magenta tick** before each section heading, and a **toxic** edge on the
+  headline cost card — the two-colour rule again: the tick is chrome, the cost
+  card is money.
 
 Three webfonts are loaded with `display=swap` and real fallback stacks. This
 **reverses** an earlier decision recorded in the stylesheet header ("no
@@ -593,6 +642,11 @@ other dark dashboard. If page weight ever matters more than identity, dropping
 the `<link>` in `render.js` degrades cleanly to the fallback stacks.
 
 **Still no JavaScript anywhere**, card enlargements included. Keep it that way.
+
+The retheme touched `public/styles.css` and nothing else: all twelve pages
+render byte-identical HTML before and after it. If a future theme needs a
+markup change, that is a sign it is reaching for something the tokens should be
+expressing instead.
 
 ---
 

@@ -148,7 +148,7 @@ const text = Buffer.from(
      <text x="620" y="282" font-family="Segoe UI, Helvetica, Arial, sans-serif"
            font-size="80" font-weight="700" fill="#e8f6ea">Scoutpost</text>
      <text x="622" y="338" font-family="Segoe UI, Helvetica, Arial, sans-serif"
-           font-size="28" fill="#a8f523">Top 8s with the build cost attached.</text>
+           font-size="28" fill="#A3E635">Top 8s with the build cost attached.</text>
      <text x="622" y="384" font-family="Segoe UI, Helvetica, Arial, sans-serif"
            font-size="24" fill="#a3bfab">Priced daily against TCGplayer.</text>
    </svg>`,

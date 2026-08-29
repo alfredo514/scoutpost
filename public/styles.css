@@ -1,8 +1,14 @@
 /* Scoutpost — design system
  *
- * A scouting instrument, not a dashboard. The site reports on a competitive
- * format and prices it, so the visual language is measurement: technical type,
- * numbers set as readouts, near-square geometry, faint grain.
+ * A scouting instrument grown on a forest floor. The site reports on a
+ * competitive format and prices it, so the type is measurement: technical
+ * faces, numbers set as readouts, faint grain.
+ *
+ * The palette is two spore colours doing two different jobs, and this is the
+ * rule worth keeping: --accent (poison magenta) marks INTERACTION, --toxic
+ * (bright green) marks MONEY and the primary action. One says "you did this",
+ * the other says "this is the number you came for". A price is never magenta
+ * and a hover state is never toxic. See §13 of docs/HANDOFF.md.
  *
  * Goals: fast, mobile-first, dense where density helps and airy where it
  * doesn't. No framework and **no JavaScript** — nothing on any page requires it,
@@ -17,38 +23,56 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Surfaces — deep forest green. Every surface carries a green cast so the
-   * neon accents read as bioluminescence rather than as stickers on grey. */
-  --bg:        #08150e;
-  --surface:   #0e1f17;
-  --surface-2: #142b1e;
-  --line:      #1e3d2b;
-  --line-soft: #16301f;
+  /* Surfaces — the forest floor a mushroom grows on. Damp, earthy, and
+   * green-grey rather than neutral, so the spore colours below read as
+   * something growing out of it rather than as stickers on grey. */
+  --bg:        #0A1410;
+  --surface:   #16241C;   /* filter panels, cards — muddy green-grey */
+  --surface-2: #1F3227;
+  --line:      #2C4235;
+  --line-soft: #223327;
 
-  /* Text — warmed very slightly green so it sits in the palette, not on it */
-  --text:      #e8f6ea;
-  --text-mid:  #a3bfab;
-  --text-dim:  #6f8f79;
+  /* Text — the pale cream of a mushroom cap, not clinical white. */
+  --text:      #F4EFE6;
+  --text-mid:  #B9B2A4;
+  --text-dim:  #9D9789;   /* 4.5:1 on every surface it lands on — the small
+                             uppercase labels are the tightest case */
 
-  /* Accents — the shroom's two hues: acid lime and spore pink */
-  --accent:      #a8f523;   /* headline numbers, primary action */
-  --accent-soft: #ccfa7e;
-  --accent-rgb:  168, 245, 35;   /* for rgba() glows */
-  --pos:         #4df0a8;   /* cheap end of a cost range */
-  --neg:         #f279e4;   /* expensive / warning — the cap spots */
-  --neg-rgb:     242, 121, 228;
-  --ink:         #08150e;   /* text on a lime fill */
+  /* Two spore colours, and they do different jobs.
+   *
+   * --accent is poison magenta and marks INTERACTION: the filter you chose,
+   * the link under your pointer, the row you are on. --toxic is the bright
+   * green and is reserved for MONEY and the primary action, which is what the
+   * site is for. Keeping them apart is what stops the palette turning into
+   * decoration — one colour means "you did this", the other means "this is the
+   * number you came for". */
+  --accent:      #C77DFF;   /* poison magenta — active and interactive */
+  --accent-soft: #E0AAFF;
+  --accent-rgb:  199, 125, 255;
+  --toxic:       #A3E635;   /* prices, and the Search button */
+  --toxic-rgb:   163, 230, 53;
+  --pos:         #7DD3A0;   /* cheap end of a cost range */
+  --neg:         #F2704E;   /* expensive, and a falling price */
+  --neg-rgb:     242, 112, 78;
+  --ink:         #0A1410;   /* text on an accent or toxic fill */
   --focus:       #8be9ff;
 
   /* Glow. Sized so it reads on a dark ground without smearing text. */
   --glow-accent: 0 0 12px rgba(var(--accent-rgb), .45);
+  --glow-toxic:  0 0 14px rgba(var(--toxic-rgb), .40);
 
-  /* Instrument geometry: nearly square. Soft 10px corners read as a generic
-   * dashboard; 3px reads as a panel on a device. One larger radius is kept for
-   * the few places something should feel like a card rather than a readout. */
-  --radius:    3px;
-  --radius-sm: 2px;
-  --radius-lg: 10px;
+  /* Softer than it was. The near-square 3px geometry read as instrument
+   * panelling, which was the point at the time; this palette wants something
+   * that grew rather than something that was machined, so the corners open up
+   * and anything you press or type into goes fully round.
+   *
+   * (This reverses the earlier decision recorded in §13 of the handoff. That
+   * decision was sound for the instrument look and is simply not what this
+   * theme is after — put --radius back to 3px to undo it.) */
+  --radius:      6px;
+  --radius-sm:   4px;
+  --radius-lg:   16px;
+  --radius-pill: 999px;
   --wrap:      1120px;
 
   /* Three roles, two families. Display is angular and technical; body is a
@@ -193,7 +217,7 @@ section + section { margin-top: 2.6rem; }
 }
 .hero { padding: 1rem 0 .5rem; max-width: 46rem; }
 .hero h1 { font-size: clamp(1.9rem, 5vw, 3rem); }
-.hero h1 em { font-style: normal; color: var(--accent); text-shadow: var(--glow-accent); }
+.hero h1 em { font-style: normal; color: var(--toxic); text-shadow: var(--glow-toxic); }
 .lede { color: var(--text-mid); font-size: 1.03rem; margin-top: .8rem; max-width: 46rem; }
 .meta-line { color: var(--text-mid); font-size: .95rem; margin-top: .5rem; }
 .notes { color: var(--text-mid); margin-top: .7rem; font-size: .95rem; }
@@ -202,16 +226,21 @@ section + section { margin-top: 2.6rem; }
 
 .btn {
   display: inline-flex; align-items: center; gap: .4rem;
-  padding: .6rem 1.1rem; border-radius: var(--radius-sm);
+  padding: .6rem 1.25rem; border-radius: var(--radius-pill);
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--line); text-decoration: none;
   font-weight: 650; font-size: .93rem;
   transition: background var(--snap), border-color var(--snap), transform var(--snap);
 }
-.btn:hover { background: #1a3524; border-color: #2a5138; transform: translateY(-1px); }
+.btn:hover { background: var(--surface-2); border-color: rgba(var(--accent-rgb), .45); transform: translateY(-1px); }
+/* The one button on the site that starts something. Toxic green with both an
+ * outer bloom and an inner highlight, so it reads as lit from within rather
+ * than as a flat swatch — radioactive, not painted. */
 .btn-primary {
-  background: var(--accent); color: var(--ink); border-color: var(--accent);
-  box-shadow: 0 0 18px rgba(var(--accent-rgb), .30);
+  background: var(--toxic); color: var(--ink); border-color: var(--toxic);
+  box-shadow: 0 0 22px rgba(var(--toxic-rgb), .38),
+              inset 0 1px 0 rgba(255, 255, 255, .45),
+              inset 0 -6px 14px rgba(var(--toxic-rgb), .55);
 }
 .btn-primary:hover { background: var(--accent-soft); border-color: var(--accent-soft); }
 
@@ -274,7 +303,7 @@ section + section { margin-top: 2.6rem; }
 .summary .label { color: var(--text-dim); font-size: .73rem; text-transform: uppercase; letter-spacing: .08em; }
 .summary b { font-size: 1.3rem; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .summary.big b {
-  color: var(--accent); font-size: clamp(2rem, 4vw, 2.6rem);
+  color: var(--toxic); font-size: clamp(2rem, 4vw, 2.6rem);
   font-weight: 600; letter-spacing: -.02em;
   text-shadow: var(--glow-accent);
 }
@@ -353,7 +382,7 @@ section + section { margin-top: 2.6rem; }
 
 .strong-link { color: var(--text); text-decoration: none; font-weight: 650; }
 .strong-link:hover { color: var(--accent); text-decoration: underline; }
-.cost { color: var(--accent); font-weight: 700; }
+.cost { color: var(--toxic); font-weight: 700; }
 .qty { color: var(--text-mid); font-weight: 600; }
 .card-name { display: block; font-weight: 600; }
 .card-code { display: block; font-family: var(--mono); font-size: .74rem; color: var(--text-dim); margin-top: .1rem; }
@@ -377,14 +406,14 @@ section + section { margin-top: 2.6rem; }
   background: rgba(var(--accent-rgb),.16); border-color: rgba(var(--accent-rgb),.5);
   color: var(--accent); box-shadow: 0 0 10px rgba(var(--accent-rgb), .22);
 }
-.place-2 { background: rgba(200,225,208,.1); border-color: rgba(200,225,208,.32); color: #cfe3d4; }
+.place-2 { background: rgba(244,239,230,.09); border-color: rgba(244,239,230,.28); color: #E4DCCE; }
 
 /* Relative-cost bar */
 .bar-cell { width: 26%; min-width: 90px; }
 .bar { display: block; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar-fill {
   display: block; height: 100%; width: var(--pct, 0%);
-  background: linear-gradient(90deg, var(--pos), var(--accent) 55%, var(--neg));
+  background: linear-gradient(90deg, var(--pos), var(--toxic) 55%, var(--neg));
   border-radius: 999px;
 }
 
@@ -643,8 +672,8 @@ body::after {
 /* The headline cost is the one number people come for. Give its card an accent
  * edge so the eye lands there before anything else on the page. */
 .summary.big {
-  border-color: rgba(var(--accent-rgb), .35);
-  box-shadow: inset 3px 0 0 var(--accent), 0 0 24px rgba(var(--accent-rgb), .07);
+  border-color: rgba(var(--toxic-rgb), .35);
+  box-shadow: inset 3px 0 0 var(--toxic), 0 0 24px rgba(var(--toxic-rgb), .07);
 }
 
 /* Rows should answer the pointer immediately. */
@@ -672,8 +701,12 @@ body::after {
   column-gap: .7rem; row-gap: .55rem;
   align-items: baseline;
   padding: .95rem 1.05rem; margin-bottom: 1.6rem;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--surface);
+  /* No border. A hairline outline is what made this read as a boxed-off form;
+   * a soft shadow lets the panel sit on the page instead of being cut into it. */
+  border: 1px solid transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px -12px rgba(0, 0, 0, .7);
+  border-radius: var(--radius-lg);
   overflow: hidden;  /* clips the full-bleed toggle to the panel's corners */
 }
 .filter-row { display: contents; }
@@ -692,13 +725,13 @@ body::after {
 
 .chip {
   display: inline-flex; align-items: center; gap: .4rem;
-  padding: .3rem .65rem; border-radius: var(--radius-sm);
+  padding: .3rem .8rem; border-radius: var(--radius-pill);
   border: 1px solid var(--line); background: var(--surface-2);
   color: var(--text-mid); text-decoration: none;
   font-size: .82rem; font-weight: 600; text-transform: capitalize;
   transition: color var(--snap), background var(--snap), border-color var(--snap);
 }
-.chip:hover { color: var(--text); border-color: #2a5138; }
+.chip:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .45); }
 .chip.is-on {
   background: var(--accent); border-color: var(--accent); color: var(--ink);
   box-shadow: 0 0 14px rgba(var(--accent-rgb), .25);
@@ -720,7 +753,7 @@ body::after {
   display: flex; flex-direction: column; gap: .1rem;
   /* .tile-body carries the text spacing; see the card browser section below. */
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: .5rem;
+  border-radius: var(--radius-lg); padding: .55rem;
   transition: border-color var(--snap), transform var(--snap), background var(--snap);
 }
 .card-tile:hover {
@@ -730,7 +763,7 @@ body::after {
 .tile-art { display: block; margin-bottom: .45rem; }
 .tile-art img {
   display: block; width: 100%; height: auto;
-  border-radius: 2px; background: var(--surface-2);
+  border-radius: calc(var(--radius-lg) - 6px); background: var(--surface-2);
 }
 .tile-art--empty {
   display: block; width: 100%; aspect-ratio: 300 / 418;
@@ -743,7 +776,7 @@ body::after {
 }
 .tile-price {
   font-family: var(--mono); font-size: .86rem; font-weight: 600;
-  color: var(--accent); margin-top: .2rem; font-variant-numeric: tabular-nums;
+  color: var(--toxic); margin-top: .2rem; font-variant-numeric: tabular-nums;
 }
 .tile-price.is-unpriced { color: var(--text-dim); font-weight: 400; }
 
@@ -771,9 +804,9 @@ body::after {
 }
 .search-input {
   flex: 1; min-width: 15rem;
-  padding: .58rem .8rem;
+  padding: .58rem 1.05rem;
   background: var(--surface); color: var(--text);
-  border: 1px solid var(--line); border-radius: var(--radius);
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
   font-family: var(--sans); font-size: .95rem;
   transition: border-color var(--snap), box-shadow var(--snap);
 }
@@ -815,8 +848,9 @@ body::after {
 .era-filter {
   display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
   padding: .7rem .9rem; margin-bottom: 1.2rem;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px -12px rgba(0, 0, 0, .7);
+  border-radius: var(--radius-lg);
 }
 
 /* ───────────────────────── Card detail ─────────────────────────
@@ -906,7 +940,7 @@ body::after {
  * written out as well — colour alone is not a distinction every reader can
  * make, and this is the one number on the page whose direction is its meaning. */
 .move { font-weight: 700; }
-.move-up { color: var(--accent); }
+.move-up { color: var(--toxic); }
 .move-down { color: var(--neg); }
 
 .boards { display: grid; gap: 1.6rem; }
@@ -938,7 +972,7 @@ body::after {
  * so no call site can forget it. */
 .chip.is-default {
   background: var(--surface-2);
-  border-color: #2a5138;
+  border-color: rgba(var(--accent-rgb), .45);
   color: var(--text-mid);
   box-shadow: none;
 }
@@ -975,7 +1009,7 @@ body::after {
   background: var(--surface-2);
   transition: background var(--snap);
 }
-.filters-more > summary:hover { background: #17331f; }
+.filters-more > summary:hover { background: #253A2D; }
 .filters-more > summary::-webkit-details-marker { display: none; }
 .filters-more-trigger {
   display: flex; width: 100%; align-items: center; gap: .5rem;

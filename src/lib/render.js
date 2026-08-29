@@ -163,7 +163,7 @@ ${robots ? `<meta name="robots" content="${esc(robots)}"/>\n` : ''}<link rel="ca
 <meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="Scoutpost — Riftbound top 8s with the build cost attached"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="theme-color" content="#08150e"/>
+<meta name="theme-color" content="#0A1410"/>
 ${/* The tab icon is the artwork, at the sizes it survives. It is declared
      ahead of anything else because softsauce.co/favicon.ico exists — it belongs
      to the portfolio on the NAS — and a browser falls back to that origin-root
