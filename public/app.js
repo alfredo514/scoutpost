@@ -280,7 +280,75 @@
     row.appendChild(box);
   }
 
-  var ENHANCEMENTS = [enhanceDeckExport, enhanceDeckCollection, enhanceCardCollection];
+  /**
+   * Clips a long board to its first N rows and offers the rest in steps.
+   *
+   * Note the direction: the server renders every row and this REMOVES some.
+   * Doing it the other way — hiding rows in CSS and revealing them with script
+   * — would hide content from anyone without script and from crawlers, which
+   * on a data site is the content itself. The class that does the hiding is
+   * added here, so no script means no hiding.
+   *
+   * Not pagination. There is no round trip and no URL: the rows are already on
+   * the page, and §23's rule about pagination staying link-based is about
+   * fetching more, which this never does.
+   */
+  function enhanceBoardClipping() {
+    var tables = document.querySelectorAll('table[data-clip]');
+
+    for (var t = 0; t < tables.length; t++) {
+      (function (table) {
+        var initial = parseInt(table.getAttribute('data-clip'), 10);
+        var step = parseInt(table.getAttribute('data-clip-step'), 10) || initial;
+        var rows = table.querySelectorAll('tbody tr');
+        if (!initial || rows.length <= initial) return;
+
+        var shown = initial;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'board-more';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        var status = document.createElement('span');
+        status.className = 'board-more-count';
+        // Politely, not assertively: the reader pressed the button, so they
+        // know something happened; this is for anyone who cannot see it.
+        status.setAttribute('aria-live', 'polite');
+        wrap.appendChild(btn);
+        wrap.appendChild(status);
+
+        function paint() {
+          for (var i = 0; i < rows.length; i++) {
+            rows[i].classList.toggle('is-clipped', i >= shown);
+          }
+          status.textContent = 'Showing ' + shown + ' of ' + rows.length;
+          if (shown >= rows.length) {
+            btn.remove();
+          } else {
+            btn.textContent = 'Show ' + Math.min(step, rows.length - shown) + ' more';
+          }
+        }
+
+        btn.addEventListener('click', function () {
+          shown = Math.min(shown + step, rows.length);
+          paint();
+          if (shown >= rows.length) status.focus && status.focus();
+        });
+
+        paint();
+        var host = table.closest('.table-wrap') || table.parentNode;
+        host.parentNode.insertBefore(wrap, host.nextSibling);
+      })(tables[t]);
+    }
+  }
+
+  var ENHANCEMENTS = [
+    enhanceDeckExport,
+    enhanceDeckCollection,
+    enhanceCardCollection,
+    enhanceBoardClipping,
+  ];
 
   function run() {
     for (var i = 0; i < ENHANCEMENTS.length; i++) {

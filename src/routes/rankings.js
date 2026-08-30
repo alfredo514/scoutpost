@@ -39,8 +39,21 @@ import {
 import { cardMark } from '../lib/images.js';
 import { PRINTING_LABELS, printingOf } from '../lib/vocab.js';
 
-/** How many rows each board shows before deferring to /cards. */
-const BOARD_ROWS = 25;
+/**
+ * How many rows each board holds before deferring to /cards.
+ *
+ * The whole 50 is rendered every time. public/app.js then CLIPS the most
+ * valuable board to `BOARD_INITIAL` and offers a button to reveal the rest ten
+ * at a time — so 25 rows of leaderboard stopped standing between the reader
+ * and the movers board below it.
+ *
+ * The clipping is done by script and never by CSS alone. Without script the
+ * board renders in full, which is what it did before and what a crawler still
+ * sees: the enhancement subtracts, so its absence costs nothing.
+ */
+const BOARD_ROWS = 50;
+const BOARD_INITIAL = 10;
+const BOARD_STEP = 10;
 const MOVER_ROWS = 8;
 
 /** Build a /rankings URL with one filter changed. */
@@ -279,7 +292,8 @@ ${adSlot('leaderboard')}
     <a class="more" href="${esc(cardsUrl(env, current))}">All cards by price →</a>
   </div>
   <div class="table-wrap">
-    <table class="data-table" id="top-cards">
+    <table class="data-table" id="top-cards"
+           data-clip="${esc(BOARD_INITIAL)}" data-clip-step="${esc(BOARD_STEP)}">
       <thead>
         <tr>
           <th scope="col" class="num">#</th>

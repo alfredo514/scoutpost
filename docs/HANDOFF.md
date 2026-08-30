@@ -866,6 +866,31 @@ day deep it returns `null` and the board says so rather than rendering zeros.
 This is the section of the site that most needs history depth: it gets better on
 its own every night, with no code change.
 
+### The board renders 50 rows and script clips it to 10
+
+25 rows of leaderboard stood between the reader and the movers board below.
+The server now renders **50** and `enhanceBoardClipping()` in app.js hides all
+but the first 10, with a button revealing 10 more per press. Measured: the
+movers board moved **3,239px** up the page, and the page got that much shorter.
+
+**Going from 25 rows to 50 costs zero extra database reads.** Measured both:
+26,348 either way. The sort over every priced card dominates, so `LIMIT` only
+changes how many rows come back, not how many are scanned. The cost of the
+extra 25 rows is about 12KB of HTML whose images are lazy and clipped, so they
+are never fetched.
+
+**The direction matters.** The server renders every row and script REMOVES
+some. Hiding them in CSS and revealing them with script would hide content
+from anyone without script and from crawlers — and on a data site the rows are
+the content. The `.is-clipped` class is only ever added by app.js.
+
+It is also not pagination, so §23 does not apply: there is no round trip and no
+URL. §23 is about *fetching* more, which this never does.
+
+`.data-table tr.is-clipped` beats the responsive `.data-table tr { display:
+block }` on specificity (0,2,1 against 0,1,1), so it works in both the table
+and the stacked layout with no `!important`. Verified at 375px.
+
 ### Signatures own the top of the board, correctly
 
 14 of the top 15 most valuable cards are Signature printings, and the 15th is
@@ -1254,6 +1279,10 @@ feature seems to, check first whether it actually does.
 text is rendered by the **server** into `.deck-export-text`, so the format
 lives in one testable place (`deckAsText()` in `deck-detail.js`) and the script
 never scrapes the table.
+
+`enhanceBoardClipping()` — clips any `table[data-clip]` to its first N rows and
+adds a "Show N more" button. Only /rankings' most valuable board uses it. See
+§18 for why it subtracts rather than adds.
 
 `enhanceDeckCollection()` and `enhanceCardCollection()` — collection tracking.
 Mark the cards you own; the deck page shows what it still costs **you** beside

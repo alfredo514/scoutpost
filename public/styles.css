@@ -1596,3 +1596,25 @@ a.sib-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px;
   .sib-arrow-who { display: none; }
   .sib-strip { order: 3; width: 100%; }
 }
+
+/* ─────────────── Clipping a long board ───────────────
+ *
+ * public/app.js adds .is-clipped; nothing here can hide a row on its own. That
+ * matters: the rows are the content, and a reader without script — or a
+ * crawler — must still get all of them.
+ *
+ * The class beats the responsive `.data-table tr { display: block }` rule on
+ * specificity (0,2,1 against 0,1,1), so this works in both layouts without
+ * !important.
+ */
+.data-table tr.is-clipped { display: none; }
+
+.board-more {
+  display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
+  margin-top: .9rem;
+}
+.board-more-count {
+  font-family: var(--mono); font-size: .72rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase; letter-spacing: .08em;
+}
