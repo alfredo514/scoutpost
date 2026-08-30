@@ -605,9 +605,13 @@ says "you did this", the other says "this is the number you came for". If a new
 element needs a colour, decide which of those two things it is. A price is
 never magenta and a hover state is never toxic.
 
-`--neg` is `#F2704E`, a warm ember, and it had to move: it used to be pink,
-which is now indistinguishable from the accent. It marks a falling price and a
-destructive action.
+`--neg` is `#E255C7`, poison magenta — a falling price belongs to the theme,
+not to a generic traffic light. Magenta rather than the accent's blue-violet so
+the two never read as the same thing: `--accent` is *where you are*, `--neg` is
+*a number going the wrong way*. It went through two earlier values: pink, which
+collided with the accent, then a warm ember, which was legible but off-theme.
+The deeper `#9D4EDD` was measured at **4.13:1** on `--bg` and rejected; this one
+is **5.67:1**.
 
 Surfaces are `--bg #0A1410` (forest floor) with panels a lighter muddy
 green-grey at `--surface #16241C`. Text is `--text #F4EFE6`, a mushroom-cap
@@ -619,11 +623,41 @@ above 4.5:1 — the tightest is the small uppercase `.filter-label` at 5.54, and
 the first draft put it at 4.39 against `--surface`. Check that number if you
 darken any surface or dim any text.
 
+### Everything is a token, and that is enforced
+
+As of 2026-08-29 there is **not one literal colour, radius or shadow anywhere
+outside `:root`**. An audit found the drift that accumulates otherwise: the
+site header still painted itself `rgba(8, 21, 14, .9)` — the *old* background,
+surviving the retheme because it was written as a literal rather than a token;
+a hard-coded cream on the runner-up chip; a hand-picked hover surface; four
+literal `999px` radii; and eight literal pixel radii on card art.
+
+Three things came out of that and are worth keeping:
+
+- **`--shadow-panel` is the only panel shadow.** It was copied by hand into
+  four rules, which is three chances to drift. Every raised container now reads
+  the token: `.filters`, `.era-filter`, `.legend-picker`, `.deck-siblings`,
+  `.summary`, `.panel`, `.event-card`, `.table-wrap`, `.stat-row div`.
+- **One container radius.** `--radius-lg` on every raised surface, so the Decks
+  table, the Cards grid and the Rankings boards match exactly. `.table-wrap`
+  and `.event-card` were the two stragglers at `--radius`.
+- **One pill radius, and one badge.** `--radius-pill` on every input, button
+  and chip — `.sortmenu-trigger` was the last square control. `.tag` and
+  `.legend-tag` were two badge components at two sizes saying the same kind of
+  thing; they are now one rule, and `.legend-tag` adds only the fact that it is
+  a link.
+
+Re-run the audit before believing this is still true: it lives in the session
+scratchpad, but it is twenty lines — walk `styles.css` after the `:root` block
+and assert no `#hex`, no `rgb(` and no `Npx` follows `border-radius:`.
+
 ### Geometry
 
 - **`--radius: 6px`, `--radius-lg: 16px`, `--radius-pill: 999px`.** Anything
-  you press or type into — filter chips, buttons, the search field — is fully
-  round. Panels and card tiles use `--radius-lg`.
+  you press or type into — filter chips, buttons, the search field, the sort
+  trigger, badges, and the aggregate stat blocks — is fully round. Every raised
+  container uses `--radius-lg`. Card art scales with its own size: thumbnails
+  `--radius-sm`, grid tiles `--radius`, large art `--radius-lg`.
 - This **reverses** the earlier `--radius: 3px` decision, which was recorded
   here as "soft corners read as a template; near square reads as a panel on a
   device". That was right for the instrument look and is simply not what this
@@ -865,6 +899,27 @@ of history it says "Aug 26 → Aug 28", not "this week". When the history is one
 day deep it returns `null` and the board says so rather than rendering zeros.
 This is the section of the site that most needs history depth: it gets better on
 its own every night, with no code change.
+
+### The boards read larger than the rest of the site, on purpose
+
+Thumbnails are **48x67** here against 40x56 on a decklist, and rows carry 1rem
+of vertical padding against 0.75rem. A 31-row decklist wants density; a top ten
+is the one place on the site where a row IS a card — you are looking at what a
+thing is worth, and the art is how you recognise it. Scoped to `#top-cards`
+and `.board` so nothing else inflates.
+
+The four aggregate blocks are fully-rounded pills a step lighter than the page,
+with the panel shadow plus a faint toxic bloom inside the top edge so they read
+as lit rather than drawn. Labels take the pale cream and **only the value wears
+the toxic green** — that is what makes the eye land on the number.
+
+Their grid track is `minmax(150px, 1fr)`, not 120px: the pill spends 2.5rem of
+each track on its own horizontal padding, and $49,591.73 was being clipped at
+560px. Verified unclipped from 320px to 900px.
+
+Column headers moved from `--text-dim` to `--text-mid` — they were dimmer than
+the data they label, which is backwards — with a 1px rule plus a soft accent
+bloom beneath the whole header row.
 
 ### The board renders 50 rows and script clips it to 10
 
