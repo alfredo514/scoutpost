@@ -31,6 +31,7 @@ import {
   utcDate,
   warn,
 } from './util.js';
+import { PROMO_GROUPS } from './promos.js';
 
 const BASE = 'https://tcgcsv.com/tcgplayer';
 const CATEGORY_ID = 89; // Riftbound: League of Legends Trading Card Game
@@ -126,7 +127,7 @@ export async function fetchGroups() {
 export async function collectPrices(db, groups) {
   // Index the local catalogue once: 'SET|number|variant' → card row.
   const { results: cards } = await db
-    .prepare('SELECT id, set_id, collector_number, variant, finish FROM cards')
+    .prepare('SELECT id, set_id, collector_number, variant, finish, tcgcsv_product_id FROM cards')
     .all();
 
   if (!cards || cards.length === 0) {
@@ -138,6 +139,18 @@ export async function collectPrices(db, groups) {
     const key = `${c.set_id}|${c.collector_number}|${(c.variant ?? '').toLowerCase()}`;
     if (!index.has(key)) index.set(key, []);
     index.get(key).push(c);
+  }
+
+  /* Promos are matched by product id, never by number.
+   *
+   * A promo prints its ORIGINAL set's collector number — "Viktor, Leader" in
+   * OPP is `246/298`, and 298 is Origins' set size. Two products in one promo
+   * group can even share a number (a promo and its Metal version). The number
+   * therefore identifies nothing here; the product id is unique and stable,
+   * and promo card ids are built from it. See promos.js. */
+  const byProduct = new Map();
+  for (const c of cards) {
+    if (Number.isInteger(c.tcgcsv_product_id)) byProduct.set(c.tcgcsv_product_id, c);
   }
 
   const date = utcDate();
@@ -188,17 +201,29 @@ export async function collectPrices(db, groups) {
       const printed = extended(product, 'Number');
       if (!printed) continue; // sealed product — not a single, skip silently
 
-      const parsed = parseCollectorNumber(printed);
-      if (!parsed) {
-        specialNumbering++; // e.g. 'SP3/006' promo numbering
-        continue;
-      }
+      let candidates;
 
-      const key = `${group.abbreviation}|${parsed.number}|${parsed.variant}`;
-      const candidates = index.get(key);
-      if (!candidates || candidates.length === 0) {
-        unmatched++;
-        continue;
+      if (PROMO_GROUPS.has(group.abbreviation)) {
+        // The number is meaningless in a promo group; the product id is not.
+        const card = byProduct.get(product.productId);
+        if (!card) {
+          unmatched++;
+          continue;
+        }
+        candidates = [card];
+      } else {
+        const parsed = parseCollectorNumber(printed);
+        if (!parsed) {
+          specialNumbering++; // e.g. 'SP3/006' promo numbering
+          continue;
+        }
+
+        const key = `${group.abbreviation}|${parsed.number}|${parsed.variant}`;
+        candidates = index.get(key);
+        if (!candidates || candidates.length === 0) {
+          unmatched++;
+          continue;
+        }
       }
 
       // Card text first, and OUTSIDE the price guards below. A card with no

@@ -353,7 +353,8 @@ Smaller open items:
 - `robots.txt` lives at the domain root on the **NAS**, not in this repo. It
   still needs `Sitemap: https://softsauce.co/scoutpost/sitemap.xml` added.
 - Submit that sitemap in Google Search Console.
-- 22 of 1,180 cards are unpriced — promo printings with special numbering
+- 77 of 1,419 cards are unpriced — 55 promos TCGplayer lists without a
+  market price (§24), plus the 22 original — promo printings with special numbering
   (`SP3/006`, `R01`, `T01`) that have no TCGplayer counterpart. Documented
   limitation, not a bug. This was 58 until the Signature fix; see §5.
 - Decks show `main_cost` / `side_cost` separately; the headline cost includes
@@ -1478,3 +1479,85 @@ CSS grid and flex do the layout, including the two-layout-one-DOM decks table
 (§20) and the responsive boards (§18). No measuring elements in script and
 setting pixel values. If a layout seems to need script, it needs a different
 layout.
+
+---
+
+## 24. Promo cards come from TCGplayer, not the catalogue
+
+Added 2026-08-30. The site was missing **239 promo singles**, including the most
+expensive card in the game.
+
+### Riftscribe publishes five sets and no promos
+
+Confirmed by walking its whole catalogue: OGN 352, OGS 24, SFD 288, UNL 288,
+VEN 228 — 1,180 cards, nothing else. TCGplayer has four groups it does not:
+
+| Group | | Singles |
+|---|---|---|
+| `PR` | Riftbound Promotional Cards | 14 |
+| `OPP` | Organized Play Promotional Cards | 222 |
+| `JDG` | Judge Promotional Cards | 3 |
+| `RWB` | Worlds Bundle 2025 | 0 (exists, empty) |
+
+They were invisible because the price walk joins on **set abbreviation +
+collector number**, and no card carried a promo set — so every promo product
+fell into the `unmatched` counter, silently, for months.
+
+### A promo reuses its ORIGINAL set's collector number
+
+This is the fact the whole design turns on. "Viktor, Leader" in OPP prints
+`246/298` — 298 is Origins' set size, and Origins 246 is a different card. Two
+products in one promo group can even share a number: a promo and its `(Metal)`
+version. **The collector number identifies nothing in a promo group.**
+
+So promos are matched on `tcgcsv_product_id`, which is unique and stable, and
+their card ids are built from it — `opp-662881`. `collectPrices` keeps a second
+index by product id and uses it for any group in `PROMO_GROUPS`.
+
+### TCGplayer supplies everything except art
+
+`extendedData` on a promo carries name, number, rarity, Description, Energy
+Cost, Power Cost, Might, Card Type, Tag, Domain and Flavor Text — every field a
+card page renders. 233 of 239 promos got rules text on the first run.
+
+**There is no art source.** `image_*` stay null and the pages fall back to the
+placeholder they already render for an unmirrored card, at the correct card
+aspect ratio. TCGplayer does host product photography
+(`tcgplayer-cdn.tcgplayer.com/product/<id>_200w.jpg`, ~16KB) — but that is
+TCGplayer's imagery rather than Riot's, and using it is a separate decision from
+the Riot policy in §8. Deliberately not touched.
+
+### Promo sets carry `release_date = NULL`, and that is load-bearing
+
+The trap: `EVENT_ERA` (§15) derives an event's format from "the most recent set
+released on or before it", and `setEras` builds the /events and /decks filter
+from the same dates. Judge Promos publishes **2025-12-01**, which sits between
+Origins and Spiritforged. Give it a real date and every event in that window
+silently re-attributes itself to a three-card promo set, and a "Judge Promos"
+pill appears on /decks filtering to nothing.
+
+A NULL date keeps promos out of both — `setEras` filters
+`release_date IS NOT NULL`, and `EVENT_ERA` compares `release_date <= date`,
+which no NULL satisfies — while leaving them fully browsable on /cards, whose
+set facet does not care. Verified after the run: the /events and /decks pills
+are still exactly Vendetta, Unleashed, Spiritforged, Origins.
+
+### What it changed
+
+Cards 1,180 → **1,419**. Priced 1,158 → **1,342**. Combined catalogue value
+$49,591 → **$85,112** (+72%). The top of the market is no longer Nine-Tailed Fox
+at $3,474 but **Teemo, Swift Scout (Metal) (Prize Wall) at $4,400**.
+
+55 promos are unpriced — TCGplayer lists the product but has no market price.
+That is a gap in the source, not a matching failure.
+
+### Two operational notes
+
+- **TCGCSV blocks the default Node/undici User-Agent**, with a plain-text
+  message that is not JSON — so it surfaces as a confusing parse error rather
+  than a 403. The ingest already sends `Scoutpost/1.0`; any ad-hoc script must
+  too.
+- **No site deploy was needed.** Only `ingest/` changed, and the site reads D1 at
+  request time, so the promos were live the moment the jobs finished. Deploying
+  the ingest Worker and triggering `?job=catalog` then `?job=prices` was the
+  whole release.

@@ -21,6 +21,7 @@
  */
 
 import { fetchCatalog, writeCatalog } from './catalog.js';
+import { fetchPromoCards, promoSetMeta } from './promos.js';
 import {
   collectPrices,
   fetchGroups,
@@ -30,7 +31,7 @@ import {
   writeProductLinks,
 } from './prices.js';
 import { countPending, mirrorImages } from './images.js';
-import { fail, log, recordRun, utcDate } from './util.js';
+import { fail, log, recordRun, utcDate, warn } from './util.js';
 
 /** Refresh the card catalogue from Riftscribe. */
 async function runCatalog(env, trigger) {
@@ -39,19 +40,35 @@ async function runCatalog(env, trigger) {
     // Set names/dates come from TCGplayer groups; the catalogue itself is
     // Riftscribe's. If groups are unavailable we still ingest cards.
     let setMeta = new Map();
+    let groups = [];
     try {
-      const groups = await fetchGroups();
+      groups = await fetchGroups();
       setMeta = new Map(
         groups.map((g) => [
           g.abbreviation,
           { name: g.name, releaseDate: g.releaseDate, groupId: g.groupId },
         ]),
       );
+      // Promo sets override their own entries: shorter names, and a NULL
+      // release date so they stay out of the era machinery. See promos.js.
+      for (const [id, meta] of promoSetMeta(groups)) setMeta.set(id, meta);
     } catch (e) {
       log(`catalog: proceeding without TCGplayer set metadata (${e.message})`);
     }
 
     const cards = await fetchCatalog();
+
+    // Riftscribe has no promos; TCGplayer does. A failure here must not lose
+    // the 1,180 real cards we already fetched, so it is caught and logged.
+    try {
+      const promos = await fetchPromoCards(groups);
+      if (promos.length) {
+        cards.push(...promos);
+        log(`catalog: +${promos.length} promo cards from TCGplayer`);
+      }
+    } catch (e) {
+      warn(`catalog: promo pull failed, continuing without them — ${e.message}`);
+    }
     const rowsWritten = await writeCatalog(env.DB, cards, setMeta);
     await recordRun(env.DB, { startedAt, job: 'catalog', status: 'ok', trigger, rowsWritten });
     return { job: 'catalog', status: 'ok', rowsWritten };

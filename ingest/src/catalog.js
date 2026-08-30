@@ -147,8 +147,8 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
         `INSERT INTO cards
            (id, name, set_id, collector_number, variant, rarity, finish,
             card_type, faction, public_code, image_url, image_thumb_url,
-            image_large_url, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            image_large_url, tcgcsv_product_id, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
          ON CONFLICT(id) DO UPDATE SET
            name             = excluded.name,
            set_id           = excluded.set_id,
@@ -162,6 +162,9 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
            image_url        = excluded.image_url,
            image_thumb_url  = excluded.image_thumb_url,
            image_large_url  = excluded.image_large_url,
+           -- COALESCE, not overwrite: the price job backfills this for base
+           -- cards, and a catalogue run must not wipe what it found.
+           tcgcsv_product_id = COALESCE(excluded.tcgcsv_product_id, cards.tcgcsv_product_id),
            updated_at       = datetime('now')`,
       )
       .bind(
@@ -178,6 +181,7 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
         c.image_url,
         c.image_thumb_url,
         c.image_large_url,
+        c.tcgcsv_product_id ?? null,
       ),
   );
 
