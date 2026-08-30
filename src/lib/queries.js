@@ -157,6 +157,41 @@ export async function getDeck(db, deckId) {
 }
 
 /** Every card in a deck with its current price and line total. */
+/**
+ * The rest of the top 8 this deck was part of, plus how many other decks share
+ * its Legend.
+ *
+ * Reading a top 8 meant going back to the event page between every deck. This
+ * is deliberately the WHOLE placement list rather than just the two neighbours:
+ * one query either way, and it lets a reader jump straight to 7th instead of
+ * clicking "next" five times.
+ *
+ * No costs and no card counts — this is navigation, and pricing every deck in
+ * the event to render a row of links would multiply the page's read cost for
+ * numbers nobody reads here.
+ */
+export async function deckSiblings(db, { eventId, deckId, legend }) {
+  const [siblings, sameLegend] = await Promise.all([
+    db
+      .prepare(
+        `SELECT d.id, d.placement, d.legend, d.player_name
+           FROM decks d
+          WHERE d.event_id = ?
+          ORDER BY d.placement ASC`,
+      )
+      .bind(eventId)
+      .all(),
+    legend
+      ? db
+          .prepare('SELECT COUNT(*) AS n FROM decks WHERE legend = ? AND id <> ?')
+          .bind(legend, deckId)
+          .first()
+      : Promise.resolve({ n: 0 }),
+  ]);
+
+  return { siblings: siblings.results ?? [], sameLegend: sameLegend?.n ?? 0 };
+}
+
 export async function getDeckCards(db, deckId) {
   const { results } = await db
     .prepare(

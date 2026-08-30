@@ -1153,6 +1153,26 @@ would be the same string twice. It earns its place by being **actionable**:
 `Legend: Irelia` filters to Irelia. If it is ever made non-interactive, delete
 it instead.
 
+### Reading a top 8 in order
+
+A decklist page carries the rest of its event at the foot: prev/next arrows
+that name who is on the other end (`4th · Kennen`, not a bare arrow), and a
+numbered strip of all eight placements with the current one marked.
+
+Both, rather than one. Prev/next is for reading the top 8 in sequence; the
+strip is for jumping straight to 7th, which prev/next would make five clicks.
+`deckSiblings()` fetches the whole placement list either way — it is one query
+for both, and it deliberately carries **no costs or card counts**, because
+pricing every deck in the event to render a row of links would multiply the
+page read cost for numbers nobody reads there.
+
+Underneath it, `N other <champion> decks` links straight into the Legend
+filter above. That is the whole reason to have built the filter as a URL: a
+second feature got its cross-linking for free.
+
+The current placement renders as a `<span>`, not a link to the page you are
+already on, and carries `aria-current="page"`.
+
 ### The green ring is a deliberate exception to the palette rule
 
 §13 reserves `--toxic` for money and the primary action, and `--accent`

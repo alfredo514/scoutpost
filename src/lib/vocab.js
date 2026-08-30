@@ -53,6 +53,17 @@ export function printingOf(card) {
 }
 
 /**
+ * The champion's own name: the part of a Legend before the comma.
+ *
+ * Riftbound names a Legend "Azir, Emperor of the Sands" — champion, then title.
+ * The full string is a deck's headline; "Azir" is the half a player says out
+ * loud, and the only half that fits in a filter chip or a navigation control.
+ */
+export function championOf(legend) {
+  return String(legend || '').split(',')[0].trim();
+}
+
+/**
  * Domain icons, cut from each colour's Rune card by
  * scripts/make-domain-icons.mjs.
  *

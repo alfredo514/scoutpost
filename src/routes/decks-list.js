@@ -38,6 +38,7 @@ import {
   setEras,
 } from '../lib/queries.js';
 import { imageKeyFromUrl, legendMark } from '../lib/images.js';
+import { championOf } from '../lib/vocab.js';
 
 /**
  * Default view: the current set only, matching /events.
@@ -47,17 +48,6 @@ import { imageKeyFromUrl, legendMark } from '../lib/images.js';
  * table, which says how many and links to the full list.
  */
 const DEFAULT_ERA = 'newest';
-
-/**
- * The champion's own name, which is the part before the comma.
- *
- * Riftbound names a Legend "Azir, Emperor of the Sands" — champion, then title.
- * The full string is the deck's headline; the badge and the avatar row want the
- * half a player actually says out loud.
- */
-function championOf(legend) {
-  return String(legend || '').split(',')[0].trim();
-}
 
 /** Build a /decks URL carrying the current filters, with one of them changed. */
 function decksUrl(env, current, change) {
@@ -158,8 +148,8 @@ export async function onRequestGet({ request, env }) {
        </td></tr>`;
 
   /* A plain GET form, like /cards. It produces a real URL, so a search is
-     shareable, bookmarkable and works with scripting off — and it is the only
-     kind of search this site can have, since nothing here ships JavaScript.
+     shareable, bookmarkable and works with scripting off. Not a typeahead: see
+     §21 and §23 — this one is deliberately not a job for script.
      The hidden inputs carry the other filters through a submit. */
   const searchForm = `
 <form class="search deck-search" method="get" action="${esc(url(env, '/decks'))}" role="search">

@@ -1527,3 +1527,72 @@ body::after {
    * where it stays reachable with a thumb. */
   .data-table--decks .has-own-toggle { gap: .5rem; }
 }
+
+/* ─────────────── Reading a top 8 in order ───────────────
+ *
+ * Getting from 3rd to 4th used to mean going back to the event page. Prev/next
+ * covers reading them in sequence; the numbered strip covers jumping straight
+ * to 7th, which prev/next would make five clicks.
+ *
+ * All plain links — this is navigation, and navigation on this site is links
+ * (§23).
+ */
+
+.deck-siblings {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .8rem; flex-wrap: wrap;
+  margin-top: 1.6rem; padding: .8rem 1rem;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px -12px rgba(0, 0, 0, .7);
+  border-radius: var(--radius-lg);
+}
+
+/* The arrow shows WHO, not just a direction: "4th · Kennen" tells you whether
+ * the next deck is worth the click. */
+.sib-arrow {
+  display: inline-flex; align-items: baseline; gap: .4rem;
+  min-width: 0;
+}
+.sib-arrow-place {
+  font-family: var(--mono); font-size: .72rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.sib-arrow-who {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 9rem;
+}
+
+.sib-strip {
+  list-style: none; display: flex; gap: .3rem;
+  flex-wrap: wrap; justify-content: center;
+  min-width: 0;
+}
+.sib-pill {
+  display: grid; place-items: center;
+  width: 1.9rem; height: 1.9rem;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: var(--surface-2); color: var(--text-mid);
+  font-family: var(--mono); font-size: .78rem; font-weight: 600;
+  text-decoration: none; font-variant-numeric: tabular-nums;
+  transition: color var(--snap), border-color var(--snap), background var(--snap);
+}
+a.sib-pill:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .5); }
+a.sib-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The page you are on. Magenta, because "where you are" is interaction state,
+ * not money — the palette rule in §13. */
+.sib-pill.is-on {
+  background: var(--accent); border-color: var(--accent); color: var(--ink);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), .28);
+  cursor: default;
+}
+
+.sib-legend-note { margin-top: .7rem; }
+
+@media (max-width: 560px) {
+  /* The strip is the useful half on a phone; the arrows keep their labels but
+   * lose the name, which is what overflows first. */
+  .deck-siblings { gap: .6rem; padding: .7rem .8rem; }
+  .sib-arrow-who { display: none; }
+  .sib-strip { order: 3; width: 100%; }
+}

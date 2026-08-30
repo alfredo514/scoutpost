@@ -10,8 +10,9 @@ import {
   placeLabel,
   url,
 } from '../lib/render.js';
-import { getDeck, getDeckCards } from '../lib/queries.js';
+import { deckSiblings, getDeck, getDeckCards } from '../lib/queries.js';
 import { cardImageSrc, cardMark } from '../lib/images.js';
+import { championOf } from '../lib/vocab.js';
 
 /**
  * Reading order for a decklist.
@@ -90,7 +91,14 @@ export async function onRequestGet({ env, params }) {
   const deck = await getDeck(env.DB, params.id);
   if (!deck) return notFound(env, 'Deck');
 
-  const cards = await getDeckCards(env.DB, deck.id);
+  const [cards, { siblings, sameLegend }] = await Promise.all([
+    getDeckCards(env.DB, deck.id),
+    deckSiblings(env.DB, {
+      eventId: deck.event_id,
+      deckId: deck.id,
+      legend: deck.legend,
+    }),
+  ]);
 
   const total = cards.reduce((sum, c) => sum + (Number(c.line_total) || 0), 0);
   const cardCount = cards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
@@ -141,6 +149,69 @@ export async function onRequestGet({ env, params }) {
   // The deck's leader, shown alongside the list the way a player thinks of it.
   const legendCard = main.find((c) => c.card_type === 'Legend');
   const legendArt = legendCard ? cardImageSrc(env, legendCard, 'large') : null;
+
+  /* Reading a top 8 meant returning to the event page between every deck.
+     Prev/next covers reading them in order; the strip covers jumping straight
+     to 7th, which prev/next would make five clicks. Both are plain links. */
+  const here = siblings.findIndex((d) => d.id === deck.id);
+  const prev = here > 0 ? siblings[here - 1] : null;
+  const next = here >= 0 && here < siblings.length - 1 ? siblings[here + 1] : null;
+
+  const arrow = (d, dir) => {
+    const label = dir === 'prev' ? '←' : '→';
+    if (!d) {
+      return `<span class="btn is-disabled" aria-disabled="true">${label}</span>`;
+    }
+    const who = championOf(d.legend) || d.player_name || 'Decklist';
+    return `<a class="btn sib-arrow" href="${esc(url(env, `/decks/${d.id}`))}"${
+      dir === 'prev' ? ' rel="prev"' : ' rel="next"'
+    }>${dir === 'prev' ? `${label} ` : ''}<span class="sib-arrow-place">${esc(
+      ordinal(d.placement),
+    )}</span><span class="sib-arrow-who">${esc(who)}</span>${
+      dir === 'next' ? ` ${label}` : ''
+    }</a>`;
+  };
+
+  const strip = siblings.length > 1
+    ? `<ol class="sib-strip">${siblings
+        .map((d) => {
+          const on = d.id === deck.id;
+          const title = `${ordinal(d.placement)} — ${
+            championOf(d.legend) || d.player_name || 'Decklist'
+          }`;
+          return `<li>${
+            on
+              ? `<span class="sib-pill is-on" aria-current="page" title="${esc(
+                  title,
+                )}">${esc(d.placement)}</span>`
+              : `<a class="sib-pill" href="${esc(
+                  url(env, `/decks/${d.id}`),
+                )}" title="${esc(title)}"><span class="sr-only">${esc(
+                  title,
+                )}</span><span aria-hidden="true">${esc(d.placement)}</span></a>`
+          }</li>`;
+        })
+        .join('')}</ol>`
+    : '';
+
+  const siblingNav = siblings.length > 1
+    ? `<nav class="deck-siblings" aria-label="Other decks in this top 8">
+  ${arrow(prev, 'prev')}
+  ${strip}
+  ${arrow(next, 'next')}
+</nav>
+${
+  sameLegend
+    ? `<p class="source-note sib-legend-note">
+        <a href="${esc(
+          url(env, `/decks?set=all&legend=${encodeURIComponent(deck.legend)}`),
+        )}">${esc(sameLegend)} other ${esc(
+        championOf(deck.legend),
+      )} deck${sameLegend === 1 ? '' : 's'}</a> across every event.
+      </p>`
+    : ''
+}`
+    : '';
 
   const body = `
 <div class="page-head">
@@ -226,6 +297,7 @@ ${adSlot('leaderboard')}
         : ''
     }
     ${priceDate ? `<p class="source-note">Market prices as of ${esc(formatDate(priceDate))}, via TCGplayer.</p>` : ''}
+    ${siblingNav}
   </div>
   ${
     legendArt
