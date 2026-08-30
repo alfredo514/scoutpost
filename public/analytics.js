@@ -4,12 +4,12 @@
  * THIS FILE IS NOT LOADED BY ANY PAGE, AND THAT IS DELIBERATE.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * Scoutpost ships no JavaScript. Not "very little" — none: the filters are
- * links, the search is a GET form, the card enlargements and both disclosures
- * are CSS. Adding a <script> tag to fire analytics events would make this the
- * first script on the site, and the first thing that stops working when
- * scripting is off. So the wiring is written here and left disconnected, for
- * whoever decides that tradeoff is worth making.
+ * Scoutpost ships exactly one script, public/app.js, and it is an enhancement:
+ * nothing on any page requires it (see §22 of docs/HANDOFF.md). Loading this
+ * file would be different in kind — it exists to feed a third-party tracker
+ * rather than to improve the page, and the reader gets nothing for it. So the
+ * wiring is written here and left disconnected, for whoever decides that
+ * tradeoff is worth making.
  *
  *
  * READ THIS BEFORE YOU CONNECT IT — you probably do not need to.
@@ -35,8 +35,7 @@
  *
  * 1. Add the GA4 gtag snippet in `layout()` (src/lib/render.js).
  * 2. Add `<script src="/analytics.js" defer></script>` after it.
- * 3. Update §21 of docs/HANDOFF.md and the "no JavaScript" claims in
- *    public/styles.css and the route files, which will no longer be true.
+ * 3. Update §21 of docs/HANDOFF.md to say it is wired.
  *
  * Everything below degrades silently when gtag is absent, so loading it before
  * step 1 is harmless — it simply does nothing.

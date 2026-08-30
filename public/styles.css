@@ -11,8 +11,14 @@
  * and a hover state is never toxic. See §13 of docs/HANDOFF.md.
  *
  * Goals: fast, mobile-first, dense where density helps and airy where it
- * doesn't. No framework and **no JavaScript** — nothing on any page requires it,
- * including the card enlargements, which are pure CSS. Keep it that way.
+ * doesn't. No framework and no build step.
+ *
+ * The site shipped zero JavaScript until 2026-08-29 and now ships exactly one
+ * deferred file, public/app.js. The rule that replaced "no JavaScript" is the
+ * one that was actually doing the work: **nothing may REQUIRE JavaScript.**
+ * Every filter is still a link, every search is still a GET form, and the card
+ * enlargements below are still pure CSS. Style accordingly — never write a rule
+ * whose only trigger is a class that script adds.
  *
  * Three webfonts are loaded (Chakra Petch, IBM Plex Sans, IBM Plex Mono) with
  * display=swap and real fallback stacks, so the page reads before they land.
@@ -1394,4 +1400,70 @@ body::after {
   .deck-search { margin: .9rem 0 .8rem; }
   /* The badge sits under the deck name in the card layout, above the player. */
   .data-table--decks .legend-tag { margin-top: .25rem; }
+}
+
+/* ─────────────── The decklist as plain text ───────────────
+ *
+ * A disclosure holding the list in a copyable form, and — only when the
+ * clipboard API exists — a Copy button that public/app.js injects beside it.
+ *
+ * The button is NOT rendered here. An affordance the server cannot back would
+ * be a dead control for anyone without script; the disclosure works for
+ * everybody, and the button is the enhancement on top. That split is the whole
+ * shape of how script is allowed to be used on this site.
+ */
+
+.deck-export-wrap {
+  display: flex; align-items: flex-start; gap: .6rem;
+  margin-top: 1rem;
+}
+.deck-export { flex: 1; min-width: 0; }
+
+.deck-export > summary {
+  display: block; width: max-content;
+  cursor: pointer; list-style: none;
+}
+.deck-export > summary::-webkit-details-marker { display: none; }
+.deck-export-trigger {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .35rem .8rem;
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--text-mid);
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em;
+  transition: color var(--snap), border-color var(--snap);
+}
+.deck-export-trigger::before {
+  content: "▸"; transition: transform var(--snap);
+}
+.deck-export[open] .deck-export-trigger::before { transform: rotate(90deg); }
+.deck-export > summary:hover .deck-export-trigger {
+  color: var(--text); border-color: rgba(var(--accent-rgb), .45);
+}
+.deck-export > summary:focus-visible .deck-export-trigger {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+
+.deck-export-body { margin-top: .6rem; }
+.deck-export-text {
+  margin: 0; padding: .9rem 1rem;
+  max-height: 22rem; overflow: auto;
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-family: var(--mono); font-size: .8rem; line-height: 1.55;
+  color: var(--text-mid);
+  white-space: pre; tab-size: 2;
+  /* Selecting the whole block is the manual path, so make it easy to grab. */
+  user-select: text;
+}
+
+/* Injected by app.js, never by the server. */
+.btn-copy { flex: none; font-size: .82rem; padding: .35rem 1rem; }
+.btn-copy.is-done {
+  background: var(--toxic); border-color: var(--toxic); color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .deck-export-wrap { flex-direction: column; align-items: stretch; }
+  .btn-copy { align-self: flex-start; }
 }

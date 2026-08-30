@@ -210,6 +210,10 @@ ${body}
     <p class="disclaimer">${esc(DISCLAIMER)}</p>
   </div>
 </footer>
+${/* Progressive enhancement only. Every page above renders and works
+     completely without this file — see the header of public/app.js, which is
+     the contract. Deferred, so it never blocks a render. */ ''}
+<script src="${esc(url(env, '/app.js'))}" defer></script>
 </body>
 </html>`;
 }

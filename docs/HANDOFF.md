@@ -322,27 +322,31 @@ real page saying what's coming and linking to what works; it carries
 Nav, footer, styling, sitemap and the noindex all follow automatically. Do not
 add links by hand anywhere — nothing reads a hardcoded nav list any more.
 
-**Planned: end the no-JavaScript rule.** The user decided on 2026-08-29 that
-JavaScript will be added to the site later. Nothing has been added yet — every
-page still ships zero script — but this is now a scheduled change rather than a
-line that must not be crossed, and the first things queued behind it are:
+**JavaScript arrived on 2026-08-29.** `public/app.js`, one deferred file,
+carrying one enhancement: a Copy button on the decklist's plain-text block.
+**§22 is the contract every future script must meet** — read it before adding
+anything. The short version is that the rule is no longer "no JavaScript", it
+is "nothing may require JavaScript", which is the part that was doing the work.
 
-- a **typeahead** on the /decks Legend search (§21), which is the feature that
-  prompted the decision
-- **GA4 events** — `public/analytics.js` is already written and deliberately
-  not loaded; read its header first, because the URL-based approach described
-  there may still be the better answer even once script is allowed
+Queued behind it, in the order I would do them:
 
-When it happens, these all become false and must be updated in the same commit:
-the header of `public/styles.css`, the "no JavaScript" notes in
-`src/routes/cards.js` and `src/routes/deck-detail.js`, §11 and §13 of this
-document, and the header of `public/analytics.js`.
+- **Collection tracking** — mark the cards you own, and every deck shows what
+  it costs *you* rather than retail. `localStorage`. On a site whose headline
+  is build cost this is the largest feature available, and it is the one thing
+  the server-rendered architecture genuinely cannot do at all.
+- **Remembered set preference** — someone who clicks "All decks" gets it
+  remembered. This dissolves the `DEFAULT_ERA` tension in §6/§15 without
+  changing the default for a first-time reader.
+- **Typeahead** on the /decks Legend search (§21), the feature that prompted
+  the decision.
+- **GA4 events** — `public/analytics.js` is written and still not loaded. Read
+  its header first: the URL-based approach it describes may remain the better
+  answer even now that script is allowed.
 
-**Do not treat this as blanket permission.** The properties the rule was
-protecting are real and worth keeping deliberately rather than losing by
-default: filters that are links stay shareable and crawlable, the decklist
-hover previews fetch exactly one image, and every page works with scripting
-off. Add script where it buys something those cannot, not as the default tool.
+Things that do NOT need script, so do not spend it there: price history charts
+(server-rendered SVG is fine; only *interactive* charts need it), the card
+lightbox (the CSS one worked), and table sorting or filtering (links already do
+it and stay shareable and crawlable — moving them to script is a downgrade).
 
 Smaller open items:
 
@@ -515,7 +519,7 @@ Decklist rows carry a 40x56 thumbnail, and hovering a row (or tab-focusing it)
 shows the large rendition pinned to the right of the viewport, big enough to
 read the card text.
 
-**Both were built with no JavaScript, and the site still ships none.** The
+**Both were built with no JavaScript, and still are.** The
 enlargement is a `background-image` on an element that stays `display: none`
 until `:hover`/`:focus-visible`, and browsers do not fetch a background for an
 unrendered element. Measured on the live page: a 31-row decklist loads 31
@@ -663,7 +667,10 @@ call, but the system stack was precisely what made the site look like every
 other dark dashboard. If page weight ever matters more than identity, dropping
 the `<link>` in `render.js` degrades cleanly to the fallback stacks.
 
-**Still no JavaScript anywhere**, card enlargements included. Keep it that way.
+**The card enlargements are still pure CSS**, and the site ships exactly one
+deferred script (`public/app.js`, added 2026-08-29 — see §22). Nothing on any
+page requires it. Never write a style whose only trigger is a class that script
+adds.
 
 The retheme touched `public/styles.css` and nothing else: all twelve pages
 render byte-identical HTML before and after it. If a future theme needs a
@@ -1111,8 +1118,9 @@ them compose with the existing `set` filter.
 ### There is no typeahead, and there cannot be one without a decision
 
 The brief asked for a typeahead. A suggestion list that updates as you type
-needs JavaScript, and this site ships none. What is there instead is /cards'
-pattern: type, submit, get a real URL. It is slower by one keystroke and better
+needs JavaScript. The site now has a script file (§22) so this is buildable,
+but it has not been built: what is there is /cards' pattern — type, submit, get
+a real URL. It is slower by one keystroke and better
 in every other way — shareable, bookmarkable, crawlable, and working with
 scripting off.
 
@@ -1163,7 +1171,82 @@ most" is answerable out of the box from Page path + query string, with no
 script from us and no dependency on the reader having scripting on.
 
 The file holds the explicit event wiring for whoever decides otherwise. Loading
-it means adding the first `<script>` to Scoutpost, at which point the no-JS
-claims in `public/styles.css`, the route headers and this document all become
-false and need updating. That is the actual cost, and it is why the file ships
-disconnected rather than wired.
+it means loading a second script and taking on a third-party tracker, neither
+of which the URL-based approach needs. That is the actual cost, and it is why
+the file still ships disconnected rather than wired.
+
+---
+
+## 22. JavaScript: the contract
+
+The site shipped zero JavaScript until **2026-08-29**. It now ships exactly one
+deferred file, `public/app.js`. The rule did not disappear — it was replaced by
+the part that was actually doing the work:
+
+> **Nothing on this site may REQUIRE JavaScript.**
+
+Every filter is still a link. Every search is still a GET form. Every page still
+renders completely and correctly with `app.js` blocked, missing, or throwing.
+Script may make something that already works nicer. It may not be the only way
+to reach anything.
+
+### Three rules that follow, and are not negotiable
+
+**1. Never render an affordance the server cannot back.** A Copy button that
+only works with script must be *created* by script, not printed by the server
+and left dead for anyone without it. This is why `deck-detail.js` renders the
+plain-text list inside a `<details>` — usable by hand, by anyone — and
+`app.js` injects the button beside it. Verified: the server HTML for a deck
+page contains **zero** `<button>` elements.
+
+**2. Feature-detect, then enhance.** No clipboard API, no button — and the list
+is still there to select. The clipboard API needs a secure context, so it is
+absent over plain http and inside some embedded views. That is a normal case,
+not an error case.
+
+**3. Fail silently.** Every enhancement runs inside its own try/catch. One
+throwing must not stop the others, and none of them may take a page down. A bug
+in `app.js` costs a convenience; it must never cost a decklist.
+
+### How it is loaded
+
+One line at the end of `layout()` in `render.js`:
+
+```html
+<script src="${esc(url(env, '/app.js'))}" defer></script>
+```
+
+`url()` carries `BASE_PATH`, so it works at `/scoutpost` today and at a bare
+domain later. `defer` means it never blocks a render.
+
+**There is no cache-busting and none is needed.** Assets from `public/` serve
+with `Cache-Control: public, max-age=0, must-revalidate` plus an ETag, so a
+deploy invalidates immediately. Do not add a version query string; it would be
+maintenance for nothing.
+
+**No framework, no bundler, no build step.** Adding one is a much larger
+commitment than adding script was, and nothing so far has needed it. If a
+feature seems to, check first whether it actually does.
+
+### What is in it
+
+`enhanceDeckExport()` — a Copy button on the decklist's plain-text block. The
+text is rendered by the **server** into `.deck-export-text`, so the format
+lives in one testable place (`deckAsText()` in `deck-detail.js`) and the script
+never scrapes the table.
+
+That text is deliberately **not** claimed to be an import format for any
+deckbuilder — it is the conventional "quantity, name, printing" shape that
+reads correctly to a human. If a real importer format is ever confirmed,
+`deckAsText()` is the one function to change.
+
+### Testing it from the agent browser is limited
+
+`navigator.clipboard.writeText` needs user activation, which a synthetic click
+does not supply — the write rejects with `NotAllowedError`. That is not a bug
+in the code and it will not happen to a real user clicking the button.
+
+The useful consequence: the **failure path is the one you can test**, and it
+was. A denied write flips the label to "Select and copy", opens the disclosure,
+and selects all 1,049 characters of the list, leaving the manual path one
+keystroke away. The success path needs a real click on a real page.

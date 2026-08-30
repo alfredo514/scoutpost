@@ -3,8 +3,9 @@
  *
  * Filters are **links, not scripts**. Every filtered view is a real URL that can
  * be shared, bookmarked, opened in a new tab and crawled, and the page works
- * with JavaScript disabled — which keeps the site's no-JS rule intact and is
- * also simply the better behaviour for a browse page.
+ * with JavaScript disabled, which is the site's rule (nothing may REQUIRE
+ * script — see public/app.js) and is also simply the better behaviour for a
+ * browse page.
  *
  * Search is a plain GET form. Hidden inputs carry the active filters through a
  * submit, so searching narrows what you are looking at rather than throwing it

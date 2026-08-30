@@ -36,6 +36,41 @@ const TYPE_LABELS = {
   Rune: 'Runes',
 };
 
+/**
+ * The decklist as plain text, in the same reading order as the table.
+ *
+ * Built on the server rather than scraped from the DOM at click time: the
+ * format is then testable, it survives any change to the table markup, and the
+ * text exists on the page whether or not a script ever runs — which is what
+ * lets the block below work by selecting it manually.
+ *
+ * Deliberately NOT claiming to be an import format for any particular
+ * deckbuilder. It is the conventional "quantity, name, printing" shape that
+ * reads correctly to a human and pastes into a message; if a real importer
+ * format is ever confirmed, this is the one function to change.
+ */
+function deckAsText(deck, groups, side) {
+  const line = (c) =>
+    `${c.quantity} ${c.name}${
+      c.public_code ? ` (${c.public_code})` : ''
+    }`;
+
+  const blocks = groups.map(([type, list]) =>
+    [TYPE_LABELS[type] ?? type, ...list.map(line)].join('\n'),
+  );
+
+  if (side.length) blocks.push(['Sideboard', ...side.map(line)].join('\n'));
+
+  const header = [
+    deck.legend || deck.player_name || 'Decklist',
+    [deck.player_name, deck.event_name].filter(Boolean).join(' · '),
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `${header}\n\n${blocks.join('\n\n')}\n`;
+}
+
 /** [[type, cards], …] in TYPE_ORDER; anything unrecognised sorts last. */
 function groupByType(list) {
   const groups = new Map();
@@ -82,7 +117,9 @@ export async function onRequestGet({ env, params }) {
       qty(list),
     )} card${qty(list) === 1 ? '' : 's'} · ${money(sum(list))}</span></td></tr>`;
 
-  const mainRows = groupByType(main)
+  const groups = groupByType(main);
+
+  const mainRows = groups
     .map(([type, list]) => sectionRow(TYPE_LABELS[type] ?? type, list) + list.map(cardRow).join(''))
     .join('');
 
@@ -162,6 +199,24 @@ ${adSlot('leaderboard')}
         </tfoot>
       </table>
     </div>
+    ${/* Useful with no script at all — open it and select the text. app.js
+         upgrades it with a Copy button when the clipboard API is available,
+         and adds nothing when it is not, so there is never a button that
+         does not work. */ ''}
+    ${
+      cards.length
+        ? `<div class="deck-export-wrap">
+      <details class="deck-export">
+      <summary><span class="deck-export-trigger">Plain text list</span></summary>
+      <div class="deck-export-body">
+        <pre class="deck-export-text" id="deck-export-text">${esc(
+          deckAsText(deck, groups, side),
+        )}</pre>
+      </div>
+      </details>
+    </div>`
+        : ''
+    }
     ${priceDate ? `<p class="source-note">Market prices as of ${esc(formatDate(priceDate))}, via TCGplayer.</p>` : ''}
   </div>
   ${
