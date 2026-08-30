@@ -1514,18 +1514,35 @@ So promos are matched on `tcgcsv_product_id`, which is unique and stable, and
 their card ids are built from it — `opp-662881`. `collectPrices` keeps a second
 index by product id and uses it for any group in `PROMO_GROUPS`.
 
-### TCGplayer supplies everything except art
+### Art comes from TCGplayer, and only 64 promos have any
 
 `extendedData` on a promo carries name, number, rarity, Description, Energy
 Cost, Power Cost, Might, Card Type, Tag, Domain and Flavor Text — every field a
 card page renders. 233 of 239 promos got rules text on the first run.
 
-**There is no art source.** `image_*` stay null and the pages fall back to the
-placeholder they already render for an unmirrored card, at the correct card
-aspect ratio. TCGplayer does host product photography
-(`tcgplayer-cdn.tcgplayer.com/product/<id>_200w.jpg`, ~16KB) — but that is
-TCGplayer's imagery rather than Riot's, and using it is a separate decision from
-the Riot policy in §8. Deliberately not touched.
+Art comes from TCGplayer's own CDN, the only place promo art exists. Two
+renditions are published and no more: `_200w` (~16KB) and `_400w` (~49KB);
+`_1000x1000` and the bare filename both 403. A promo hover preview is therefore
+400px wide against 744px for a catalogue card — the ceiling of what exists,
+not a choice.
+
+**`imageCount` is the gate, and it is honest.** Only 64 of 239 promos report
+`imageCount > 0`; the other 175 genuinely 403 on the CDN, verified by hand.
+Those keep the placeholder, and there is nothing to fetch for them.
+
+**One card lies.** `opp-662891` (Ahri, Nine-Tailed Fox) reports
+`imageCount: 1` and 403s at both widths. The mirror handles it the way §11
+describes — non-fatal, card stays unmirrored, retries nightly — so it shows as
+a permanent `failed: 1` in the images job. That is the source being wrong, not
+the job. If TCGplayer ever publishes the file, the next run picks it up.
+
+**No new mirroring code was needed.** The R2 job derives its key from whatever
+URL a card carries and the site Worker derives the same key when serving, so
+pointing `image_thumb_url`/`image_large_url` at TCGplayer was the whole
+integration. Keys look like `small/692372_200w.jpg`.
+
+These are TCGplayer's product photographs rather than Riot's renders, so the
+footer credits them for imagery as well as prices.
 
 ### Promo sets carry `release_date = NULL`, and that is load-bearing
 

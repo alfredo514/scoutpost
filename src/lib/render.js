@@ -205,7 +205,7 @@ ${body}
     <nav class="footer-nav" aria-label="Footer">${footerNavHtml}</nav>
     <p class="sources">
       Card data from Riftscribe. Price data from TCGCSV, sourced from TCGplayer
-      market prices and updated daily.
+      market prices and updated daily. Promo card images courtesy of TCGplayer.
     </p>
     <p class="disclaimer">${esc(DISCLAIMER)}</p>
   </div>

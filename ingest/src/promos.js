@@ -21,12 +21,19 @@
  * are built from it for the same reason.
  *
  * What TCGplayer gives, it gives completely: name, number, rarity, rules text,
- * flavour text, all three stats, type and domain — everything a card page shows
- * EXCEPT art. There is no art source for promos, so `image_*` stay null and the
- * pages fall back to the placeholder they already render for an unmirrored
- * card. TCGplayer hosts product photography on its own CDN; that is TCGplayer's
- * imagery rather than Riot's, and using it is a separate decision from the Riot
- * policy in §8 — so this module does not touch it.
+ * flavour text, all three stats, type and domain — everything a card page shows.
+ *
+ * Art comes from TCGplayer's own CDN, which is the only place promo art exists
+ * — Riftscribe has none. Two renditions are published and no more:
+ * `_200w` (~16KB) and `_400w` (~49KB); `_1000x1000` and the bare filename both
+ * 403. So a promo's hover preview is 400px wide against 744px for a catalogue
+ * card, which is the ceiling of what is available rather than a choice.
+ *
+ * These are TCGplayer's product photographs rather than Riot's renders, so the
+ * footer credits them for imagery as well as for prices. The mirroring itself
+ * needs no new code: the R2 job derives its key from whatever URL a card
+ * carries, so pointing `image_thumb_url`/`image_large_url` at TCGplayer is the
+ * whole integration.
  */
 
 import { fetchJson, log, nonEmptyString, warn } from './util.js';
@@ -128,6 +135,12 @@ export async function fetchPromoCards(groups) {
 
       const domain = extended(product, 'Domain');
 
+      // Built from the product id rather than parsed out of `imageUrl`: the
+      // CDN's naming is deterministic, and `imageCount` is the honest signal
+      // for whether a photograph exists at all.
+      const hasArt = Number(product.imageCount) > 0;
+      const art = (w) => `https://tcgplayer-cdn.tcgplayer.com/product/${product.productId}_${w}.jpg`;
+
       cards.push({
         // From the product id, not the collector number: promos reuse their
         // original set's numbering and can collide within their own group.
@@ -143,9 +156,11 @@ export async function fetchPromoCards(groups) {
         card_type: cardTypeOf(extended(product, 'Card Type')),
         faction: domain ? domain.split(/[;,/]/)[0].trim().toLowerCase() : null,
         public_code: `${group.abbreviation}-${printed}`,
+        // No original: TCGplayer publishes only the two widths above, and
+        // image_url is documented as the never-served canonical source.
         image_url: null,
-        image_thumb_url: null,
-        image_large_url: null,
+        image_thumb_url: hasArt ? art('200w') : null,
+        image_large_url: hasArt ? art('400w') : null,
         // Carried through so the price walk can match on it directly.
         tcgcsv_product_id: product.productId,
       });
