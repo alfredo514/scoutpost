@@ -330,13 +330,13 @@ is "nothing may require JavaScript", which is the part that was doing the work.
 
 Queued behind it, in the order I would do them:
 
-- **Collection tracking** — mark the cards you own, and every deck shows what
-  it costs *you* rather than retail. `localStorage`. On a site whose headline
-  is build cost this is the largest feature available, and it is the one thing
-  the server-rendered architecture genuinely cannot do at all.
+- [x] **Collection tracking** — shipped 2026-08-29. Mark the cards you own and
+  every deck shows what it costs *you*. See §22.
 - **Remembered set preference** — someone who clicks "All decks" gets it
-  remembered. This dissolves the `DEFAULT_ERA` tension in §6/§15 without
-  changing the default for a first-time reader.
+  remembered, dissolving the `DEFAULT_ERA` tension in §6/§15 without changing
+  the default for a first-time reader. **Do this with a cookie, not script** —
+  see §23, "the set preference", for why the obvious client-side version is
+  wrong.
 - **Typeahead** on the /decks Legend search (§21), the feature that prompted
   the decision.
 - **GA4 events** — `public/analytics.js` is written and still not loaded. Read
@@ -1235,6 +1235,33 @@ text is rendered by the **server** into `.deck-export-text`, so the format
 lives in one testable place (`deckAsText()` in `deck-detail.js`) and the script
 never scrapes the table.
 
+`enhanceDeckCollection()` and `enhanceCardCollection()` — collection tracking.
+Mark the cards you own; the deck page shows what it still costs **you** beside
+what it costs at retail. State is a plain array of card ids under
+`scoutpost:owned:v1` in `localStorage`.
+
+This is the feature the whole architecture genuinely cannot do: it is
+per-person, and Scoutpost has no accounts and wants none (§8). Four decisions
+inside it are worth keeping:
+
+- **The store is ids and nothing else.** No quantities, no condition, no
+  acquisition price. "I have the copies this deck needs" is the question a
+  build cost turns on; every extra field is a migration waiting to happen.
+- **Every storage access is wrapped.** `localStorage` *throws* in some privacy
+  modes rather than being merely empty, and `storageWorks()` probes before the
+  feature is offered at all. A deck page must not die because a browser refused
+  to remember something.
+- **Rows carry `data-line`, and the script reads that.** It never parses the
+  rendered "$12.34". A script that parses its own page's formatting breaks the
+  first time the formatting changes — and here it would break *silently, inside
+  a total*, which is the exact failure mode §5 exists to prevent.
+- **Retail stays on screen.** "Your cost" sits next to "Build cost" rather than
+  replacing it. The comparison is the point.
+
+Verified end to end: 30 toggles on a 30-row deck, "Your cost" opening equal to
+retail, $133.59 − $98.43 owned = $35.16 exactly, state surviving a reload,
+accumulating across decks, and reflected on each card's own page.
+
 That text is deliberately **not** claimed to be an import format for any
 deckbuilder — it is the conventional "quantity, name, printing" shape that
 reads correctly to a human. If a real importer format is ever confirmed,
@@ -1250,3 +1277,100 @@ The useful consequence: the **failure path is the one you can test**, and it
 was. A denied write flips the label to "Select and copy", opens the disclosure,
 and selects all 1,049 characters of the list, leaving the manual path one
 keystroke away. The success path needs a real click on a real page.
+
+---
+
+## 23. What must NOT use JavaScript, and why
+
+§22 says nothing may *require* script. This section is the other half: the
+specific things that already work, that a future session will be tempted to
+"improve" with script, and the concrete reason each one is better as it is.
+
+**The test to apply.** Before reaching for script, ask in this order:
+
+1. Does this need **per-reader state**? Then it needs script — the server
+   cannot know it. (Collection tracking is the only thing that has passed this
+   test so far.)
+2. Does it need to be **faster than a round trip**, and is the round trip
+   actually too slow? Measure before believing it. Pages here render in
+   milliseconds off an edge cache.
+3. Otherwise the server does it.
+
+### Filters, sorting and pagination — leave them as links
+
+/cards, /decks and /rankings all filter by navigating. Client-side filtering
+would cost:
+
+- **Shareable URLs.** `/decks?legend=Irelia%2C+Blade+Dancer` pasted into a
+  Discord shows the right thing. That is how a site like this spreads.
+- **Crawlability.** Search *is* the distribution for a data site. A crawler
+  handed an empty shell gets nothing, and the sitemap would be lying.
+- **The back button**, free and correct.
+- **The loading state you would then have to design**, and the empty and error
+  states behind it.
+
+Doing it client-side *properly* means reimplementing all of that with the
+History API: strictly more code for the same result. This is not a close call.
+
+### The hover previews and card enlargements — leave them as CSS
+
+Measured on the live page (§11): a 31-row decklist loads **31 thumbnails and
+zero enlargements**, and one hover fetches **exactly one**. That happens because
+browsers do not fetch a `background-image` for an unrendered element. A JS
+preloader would undo the entire property. Do not "optimise" this.
+
+### Price history charts — server-rendered SVG, not a charting library
+
+The data is already on the server. Shipping the data *plus* a library to draw
+it is strictly more bytes for the same picture, and it puts the site's
+headline numbers behind a script.
+
+Render the SVG server-side. *Interactive* charts — hover a point, read that
+day's price — are a legitimate enhancement layered on top of a chart that is
+already drawn, never a replacement for drawing it.
+
+(Still gated on snapshot depth regardless: §9.)
+
+### The disclosures — `<details>` is already correct
+
+Advanced filters, the sort menu and the plain-text list are native
+`<details>`. They are accessible, keyboard-operable and free, and their open
+state is decided **server-side** (§19) so a filter click cannot collapse the
+panel that applied it. A JS accordion would be a regression on every count.
+
+### The set preference — use a cookie, not script
+
+The tempting version: remember that someone clicked "All decks" in
+`localStorage`, then redirect on load. **Do not.** It makes the server's
+output a lie, produces a visible flash of the wrong content, and pollutes
+history.
+
+The right shape is a cookie: the *server* reads it and renders the correct page
+the first time. No flash, no redirect, works with script off. That the obvious
+tool is the wrong one here is exactly why this is written down.
+
+### Analytics — the URLs already carry it
+
+Every filter and search is a distinct URL, and GA4 records the query string on
+every `page_view`. "Which Legends get filtered most" is answerable with no
+event wiring and no dependence on the reader having script. `analytics.js`
+holds the explicit version and stays disconnected; §21 has the reasoning.
+
+### Formatting — the server formats what the server rendered
+
+`money()` exists in `app.js` for exactly one reason: it formats a number the
+script itself **computed** (your cost), which the server never printed.
+
+The rule: **script may format numbers it computed; it may never re-format
+numbers the server already printed, and it may never parse them back.** When
+the script needs a value the page displays, the server emits it as a data
+attribute — see `data-line` on the decklist rows. Parsing "$12.34" out of the
+DOM is how you get a total that is silently wrong after an unrelated change to
+a formatter.
+
+### Layout
+
+CSS grid and flex do the layout, including the two-layout-one-DOM decks table
+(§20) and the responsive boards (§18). No measuring elements in script and
+setting pixel values. If a layout seems to need script, it needs a different
+layout.

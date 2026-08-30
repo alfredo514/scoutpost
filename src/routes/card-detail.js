@@ -143,7 +143,7 @@ export async function onRequestGet({ env, params }) {
     ${subtitle ? `<p class="card-subtitle">${esc(subtitle)}</p>` : ''}
     ${textPane}
 
-    <div class="summary-cards card-price-row">
+    <div class="summary-cards card-price-row" data-card="${esc(card.id)}">
       <div class="summary big">
         <span class="label">Market price</span>
         <b>${card.market_price === null ? '—' : money(card.market_price)}</b>

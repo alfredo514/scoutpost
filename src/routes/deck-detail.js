@@ -102,7 +102,15 @@ export async function onRequestGet({ env, params }) {
   const sum = (list) => list.reduce((t, c) => t + (Number(c.line_total) || 0), 0);
   const qty = (list) => list.reduce((t, c) => t + (Number(c.quantity) || 0), 0);
 
-  const cardRow = (c) => `<tr>
+  /* The data attributes are for public/app.js's collection tracking. Numbers
+     rather than the rendered "$12.34", because a script that parses its own
+     page's formatting breaks the first time the formatting changes — and would
+     break silently, in a total. The row is inert without script. */
+  const cardRow = (c) => `<tr data-card="${esc(c.id)}" data-qty="${esc(c.quantity)}"${
+    c.market_price === null || c.market_price === undefined
+      ? ''
+      : ` data-line="${esc(c.line_total)}"`
+  }>
       <td data-label="Qty" class="num qty">${esc(c.quantity)}×</td>
       <td data-label="Card">
         ${cardMark(env, c)}
@@ -151,7 +159,7 @@ export async function onRequestGet({ env, params }) {
   ${deck.notes ? `<p class="notes">${esc(deck.notes)}</p>` : ''}
 </div>
 
-<div class="summary-cards">
+<div class="summary-cards" data-deck-summary>
   <div class="summary big"><span class="label">Build cost</span><b>${money(total)}</b></div>
   <div class="summary"><span class="label">Maindeck</span><b>${money(sum(main))}</b></div>
   ${

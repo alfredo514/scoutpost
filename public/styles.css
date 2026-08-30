@@ -1467,3 +1467,63 @@ body::after {
   .deck-export-wrap { flex-direction: column; align-items: stretch; }
   .btn-copy { align-self: flex-start; }
 }
+
+/* ─────────────── Your collection ───────────────
+ *
+ * Every selector here styles an element that public/app.js CREATES. None of it
+ * can be triggered by server-rendered markup, which is the correct shape: the
+ * feature is per-reader, it lives in localStorage, and a page without script
+ * shows no trace of it rather than an inert control.
+ */
+
+.own-toggle {
+  flex: none;
+  width: 22px; height: 22px; padding: 0;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: var(--surface-2);
+  color: transparent;
+  cursor: pointer;
+  transition: border-color var(--snap), background var(--snap), color var(--snap);
+}
+.own-toggle::before { content: "✓"; font-size: .72rem; line-height: 1; }
+.own-toggle:hover { border-color: rgba(var(--toxic-rgb), .55); color: var(--text-dim); }
+.own-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Owned is the one state worth the bright colour here: it is the thing the
+ * reader did, and it is what changes the number they came for. */
+.own-toggle[aria-pressed="true"] {
+  background: var(--toxic); border-color: var(--toxic); color: var(--ink);
+  box-shadow: 0 0 10px rgba(var(--toxic-rgb), .3);
+}
+
+.has-own-toggle { display: flex; align-items: center; gap: .6rem; }
+
+/* An owned row recedes: you are not buying it, so it should stop competing
+ * with the rows you still have to. The line total keeps its value on screen
+ * rather than being hidden — the comparison is the point. */
+.data-table tr.is-owned td { opacity: .58; }
+.data-table tr.is-owned td:first-child { box-shadow: inset 2px 0 0 var(--toxic); }
+.data-table tr.is-owned .has-own-toggle { opacity: 1; }
+
+.summary-own { border-color: rgba(var(--toxic-rgb), .28); }
+.summary-own.is-active {
+  border-color: rgba(var(--toxic-rgb), .5);
+  box-shadow: inset 2px 0 0 var(--toxic);
+}
+.summary-own b { color: var(--toxic); font-variant-numeric: tabular-nums; }
+.summary-own-note {
+  font-family: var(--mono); font-size: .64rem; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+/* On a card's own page the toggle sits beside its label rather than under it. */
+.card-price-row .summary-own {
+  flex-direction: row; align-items: center; gap: .6rem;
+}
+.card-price-row .summary-own .label { text-transform: none; letter-spacing: 0; font-size: .82rem; }
+
+@media (max-width: 720px) {
+  /* The stacked card layout puts the toggle at the start of the Card cell,
+   * where it stays reachable with a thumb. */
+  .data-table--decks .has-own-toggle { gap: .5rem; }
+}
