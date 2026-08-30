@@ -1544,6 +1544,28 @@ integration. Keys look like `small/692372_200w.jpg`.
 These are TCGplayer's product photographs rather than Riot's renders, so the
 footer credits them for imagery as well as prices.
 
+### Metal prize cards are hidden on /rankings by default
+
+TCGplayer marks them only in the product name — "Teemo, Swift Scout (Metal)
+(Prize Wall)" — so a name match is the only signal there is. `METAL_MARKER`
+in queries.js.
+
+Measured before deciding: **68 Metal cards, 15 of them in the top 50 by price,
+and those 15 were every art-less card in that top 50.** Hiding Metal and hiding
+"expensive things with no picture" turned out to be the same operation, which
+is why a name match is good enough here.
+
+The filter is **opt-in at the query layer**: `cardFilterParts` adds the
+condition only when `metal: 'hide'` is passed, so /cards is unaffected and
+still shows all 68. Only /rankings passes it, and it passes it on every
+request; `?metal=show` is the only value that ever reaches a URL, so the
+canonical /rankings stays clean.
+
+It applies to the **whole page**, not just the board — stats, movers and all.
+Hiding a card from the leaderboard while still counting it in "Combined value"
+would make the two disagree. Cards priced reads 1,327 by default and 1,342
+with Metal shown.
+
 ### Promo sets carry `release_date = NULL`, and that is load-bearing
 
 The trap: `EVENT_ERA` (§15) derives an event's format from "the most recent set

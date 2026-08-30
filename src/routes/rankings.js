@@ -30,6 +30,7 @@ import {
 import {
   cardFacets,
   marketStats,
+  metalCount,
   moverWindow,
   printingFacets,
   setValueTable,
@@ -61,6 +62,9 @@ function filterUrl(env, current, change) {
   const next = { ...current, ...change };
   const qs = new URLSearchParams();
   for (const key of ['set', 'printing']) if (next[key]) qs.set(key, next[key]);
+  // Hidden is the default, so only the opt-in ever reaches the URL and the
+  // canonical /rankings stays clean.
+  if (next.metal === 'show') qs.set('metal', 'show');
   const query = qs.toString();
   return url(env, `/rankings${query ? `?${query}` : ''}`);
 }
@@ -142,14 +146,17 @@ export async function onRequestGet({ request, env }) {
   const [facets, printings] = await Promise.all([cardFacets(env.DB), printingFacets(env.DB)]);
 
   const requestedSet = params.get('set') || '';
+  const showMetal = params.get('metal') === 'show';
   const current = {
     set: facets.sets.some((s) => s.v === requestedSet) ? requestedSet : '',
     printing: PRINTING_LABELS[requestedPrinting] ? requestedPrinting : '',
+    // 'show' is the only value the URL ever carries; anything else hides.
+    metal: showMetal ? 'show' : 'hide',
   };
 
   const moveWindow = await moverWindow(env.DB);
 
-  const [stats, top, sets, risers, fallers] = await Promise.all([
+  const [stats, top, sets, risers, fallers, metalHidden] = await Promise.all([
     marketStats(env.DB, current),
     topCards(env.DB, { ...current, limit: BOARD_ROWS }),
     setValueTable(env.DB),
@@ -159,6 +166,7 @@ export async function onRequestGet({ request, env }) {
     moveWindow
       ? topMovers(env.DB, { ...moveWindow, ...current, direction: 'down', limit: MOVER_ROWS })
       : [],
+    metalCount(env.DB, current),
   ]);
 
   const setLabel = facets.sets.find((s) => s.v === current.set)?.label;
@@ -170,6 +178,11 @@ export async function onRequestGet({ request, env }) {
   const setChips = [
     chip(env, current, { set: '' }, 'All sets', undefined, !current.set),
     ...facets.sets.map((s) => chip(env, current, { set: s.v }, s.label, s.n, current.set === s.v)),
+  ].join('');
+
+  const metalChips = [
+    chip(env, current, { metal: '' }, 'Hidden', undefined, !showMetal),
+    chip(env, current, { metal: 'show' }, 'Shown', metalHidden, showMetal),
   ].join('');
 
   const printingChips = [
@@ -253,6 +266,10 @@ export async function onRequestGet({ request, env }) {
     <span class="filter-label">Printing</span>
     <div class="chips">${printingChips}</div>
   </div>
+  <div class="filter-row">
+    <span class="filter-label">Metal</span>
+    <div class="chips">${metalChips}</div>
+  </div>
   ${
     active.length
       ? `<div class="filter-row">
@@ -280,6 +297,19 @@ ${
         ${esc(Number(unpriced).toLocaleString('en-US'))} more
         ${unpriced === 1 ? 'has' : 'have'} no TCGplayer counterpart and count for nothing here.
         <a href="${esc(cardsUrl(env, { ...current, priced: 'no' }))}">See which</a>.
+      </p>`
+    : ''
+}
+
+${
+  !showMetal && metalHidden
+    ? `<p class="source-note">
+        ${esc(metalHidden)} Metal prize card${metalHidden === 1 ? '' : 's'}
+        ${metalHidden === 1 ? 'is' : 'are'} hidden. They are event prizes, they
+        outprice almost everything, and TCGplayer has no photograph for nearly
+        any of them — so by default they would fill the top of this board with
+        blank frames.
+        <a href="${esc(filterUrl(env, current, { metal: 'show' }))}">Show them</a>.
       </p>`
     : ''
 }

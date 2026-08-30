@@ -375,7 +375,22 @@ const PRINTINGS = {
   promo: "c.variant NOT IN ('', 'a', 'star')",
 };
 
-function cardFilterParts({ type, color, set, rarity, printing, q, priced }) {
+/**
+ * Metal prize cards.
+ *
+ * TCGplayer marks them only in the product name — "Teemo, Swift Scout (Metal)
+ * (Prize Wall)" — so a name match is the only signal there is. They are the
+ * metal-printed prizes handed out at events: real cards with real prices, but
+ * almost none have a photograph, and they are expensive enough to take over a
+ * leaderboard sorted by price.
+ *
+ * Measured on 2026-08-30: 68 Metal cards, 15 of them in the top 50 by price —
+ * and those 15 were **every** art-less card in that top 50. Hiding Metal and
+ * hiding "expensive things with no picture" were the same operation.
+ */
+const METAL_MARKER = "c.name NOT LIKE '%(Metal)%'";
+
+function cardFilterParts({ type, color, set, rarity, printing, q, priced, metal }) {
   const where = [];
   const params = [];
   if (type) {
@@ -407,6 +422,9 @@ function cardFilterParts({ type, color, set, rarity, printing, q, priced }) {
   }
   if (priced === 'yes') where.push('p.market_price IS NOT NULL');
   if (priced === 'no') where.push('p.market_price IS NULL');
+  // Opt-in: absent means no condition, so /cards is unaffected and still shows
+  // every card. Only /rankings asks for this, and it asks on every request.
+  if (metal === 'hide') where.push(METAL_MARKER);
 
   return { where, params };
 }
@@ -713,6 +731,29 @@ export async function marketStats(db, filters = {}) {
     over50: agg?.over50 ?? 0,
     median: med?.median ?? null,
   };
+}
+
+/**
+ * How many priced Metal cards the current slice is hiding.
+ *
+ * Only used to put a number on the "Shown" chip, so the reader can see what
+ * the default is costing them before they click it.
+ */
+export async function metalCount(db, filters = {}) {
+  const { where, params } = cardFilterParts({ ...filters, metal: undefined, priced: 'yes' });
+  const clause = [...where, "c.name LIKE '%(Metal)%'"].join(' AND ');
+  const row = await db
+    .prepare(
+      `WITH ${LATEST_PRICES}
+       SELECT COUNT(*) AS n
+         FROM cards c
+         LEFT JOIN sets s ON s.id = c.set_id
+         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+        WHERE ${clause}`,
+    )
+    .bind(...params)
+    .first();
+  return row?.n ?? 0;
 }
 
 /**
