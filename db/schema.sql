@@ -126,6 +126,11 @@ CREATE TABLE IF NOT EXISTS deck_cards (
 );
 
 CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id, section);
+-- The reverse lookup: "which decks play this card", on every card page. The
+-- primary key is (deck_id, card_id, section), so card_id alone was unindexed
+-- and the query scanned the whole table. Measured 2026-09-02: 1,952 rows read
+-- before this index, 4 after.
+CREATE INDEX IF NOT EXISTS idx_deck_cards_card ON deck_cards(card_id);
 
 -- Historical record only. The displayed cost is always recomputed live.
 /* Printed card text, from TCGplayer.

@@ -218,14 +218,40 @@ ${/* Progressive enhancement only. Every page above renders and works
 </html>`;
 }
 
-export function htmlResponse(html, { status = 200, maxAge = 300 } = {}) {
+/**
+ * An HTML response, cached at the edge.
+ *
+ * The numbers are chosen against how often the data actually changes, which is
+ * **once a day** — the price cron runs at 21:15 UTC and nothing else moves on
+ * its own. A 5-minute edge TTL meant the edge re-rendered a page up to 288
+ * times a day per URL, and every one of those is a set of D1 queries. That is
+ * the same class of waste as §25, one layer up.
+ *
+ * `stale-while-revalidate` is what makes the longer TTL free: past 30 minutes
+ * the edge serves the stale copy **immediately** and refreshes behind the
+ * reader, so nobody ever waits for a revalidation and D1 sees roughly 48
+ * renders a day per URL instead of 288.
+ *
+ * It is one hour, not a day, and that is deliberate. This site prints "Prices
+ * as of <date>" on the page; serving a copy that is stale by longer than a
+ * price cycle would make that line a lie. 30 minutes fresh plus at most an
+ * hour stale keeps the worst case well inside one daily cron.
+ *
+ * `max-age=60` keeps the BROWSER cache short on purpose. A reader who clicks a
+ * filter and comes back must not be shown their own stale copy of a page whose
+ * prices just moved; the edge is where the caching should happen, not the tab.
+ *
+ * The cost: a newly imported event can take up to 30 minutes to appear. That
+ * is a data operation someone does deliberately (§6), so it is fine to wait —
+ * and `npx wrangler deploy` purges the cache if it ever is not.
+ */
+export function htmlResponse(html, { status = 200, maxAge = 1800 } = {}) {
   return new Response(html, {
     status,
     headers: {
       'content-type': 'text/html; charset=utf-8',
-      // Short edge cache: prices move once a day, but pages must not go stale
-      // for long after a new event is imported.
-      'cache-control': `public, max-age=60, s-maxage=${maxAge}`,
+      'cache-control':
+        `public, max-age=60, s-maxage=${maxAge}, stale-while-revalidate=3600`,
     },
   });
 }
