@@ -414,13 +414,18 @@ the card is stored, so there is no separate foil price history.
 Costs are computed at read time and reach the site within the edge cache TTL
 (`s-maxage=300`, ≤5 minutes of the cron finishing).
 
-**`PRICE_WINDOW_DAYS` in `src/lib/queries.js` is load-bearing.** The per-card
-"latest price" lookup only scans the last 30 days. Without that bound it scans
-every price row ever written on every page view — ~1,100 rows/day accumulating
-to ~410k/year, for identical output. `d1 info` already showed 682k rows read in
-24h at near-zero traffic against a 5M/day free-tier limit, and that number grows
-with history depth whether or not traffic does. Do not remove the `WHERE`
-clause. Widening the window is safe; deleting it is not.
+**Latest price per card is a TABLE, not a query.** `card_latest_price` holds
+one row per card and is rebuilt nightly by the price job
+(`rebuildLatestPrices`). Every page joins it. **See §25** — the short version is
+that computing it per query nearly took the site off the air on 2026-09-01.
+
+`PRICE_WINDOW_DAYS` now lives in `ingest/src/prices.js` and sizes only that
+nightly rebuild, never a page read. It is 30 days.
+
+The tradeoff is unchanged: a card with no price for longer than the window
+reads as unpriced rather than quoting a stale figure. That is the better answer
+— the deck page already shows how many of its cards are priced, so an honest
+gap is visible where a months-old price would silently look current.
 
 ---
 
@@ -1600,3 +1605,88 @@ That is a gap in the source, not a matching failure.
   request time, so the promos were live the moment the jobs finished. Deploying
   the ingest Worker and triggering `?job=catalog` then `?job=prices` was the
   whole release.
+
+---
+
+## 25. The day D1 reads nearly ran out
+
+**2026-09-01.** Cloudflare warned at **91% of the 5,000,000 rows_read/day** free
+tier limit. 4,561,457 rows read in 24h, from only 2,769 queries — about 1,650
+rows per query, on a site with almost no public traffic.
+
+### It was not a bug, and it was not traffic
+
+The ingest ran exactly its scheduled crons (2 of each job) and wrote 21,093
+rows. Nothing looped. The reads came from **page renders**, and the cost was in
+one pattern that every price-aware query repeated:
+
+```sql
+WITH latest AS (SELECT card_id, market_price,
+       ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY date DESC)
+  FROM price_snapshots WHERE date >= <window>)
+```
+
+Correct, and it scanned **and partitioned the entire recent price history on
+every single query**.
+
+### The cost was not constant — it grew nightly
+
+| | 2026-08-28 | 2026-09-01 |
+|---|---|---|
+| Rows read per query | 18,300 | **39,939** |
+| Price rows in window | 3,402 | **8,601** |
+| Cards | 1,180 | **1,419** |
+
+Three things compounded: history accumulating every night, promos adding 20%
+more cards (§24), and /rankings running **six** of these scans per render — a
+seventh once `metalCount` was added. One uncached /rankings view reached
+**~250,000 rows**, so roughly eighteen views would spend the entire daily
+allowance. A day of development did exactly that.
+
+Left alone it got worse on its own: at the 30-day ceiling the window holds
+~40,000 price rows, which would have put a single /rankings view near **1M
+rows** — five page views a day, with no visitors at all.
+
+### The fix: materialise it
+
+`card_latest_price`, one row per card, rebuilt by the nightly price job. Every
+query joins a 1,419-row table instead of scanning and partitioning history.
+
+**Measured on the heaviest query: 38,440 → 4,034 rows read. 9.5x.** And the
+cost no longer grows with history depth at all.
+
+`LATEST_PRICES` in queries.js kept its name and shape — still a CTE called
+`latest` with the same columns — so all twelve call sites read unchanged. The
+`AND p.rn = 1` predicate went away everywhere: the table holds only the winning
+row, so there is nothing left to rank.
+
+### Three things to keep right
+
+- **DELETE then INSERT, batched.** Not an upsert: a card whose last price ages
+  out of the window must *disappear* from the table, and an upsert would leave
+  the stale row forever. Batched because a half-applied rebuild would blank
+  every price on the site.
+- **The fallback still works.** The rebuild takes the newest row per card, not
+  today's rows, so a card missing from today's feed keeps its own last known
+  price — exactly as before.
+- **It is derived data.** `price_snapshots` remains the source of truth;
+  `card_latest_price` can be dropped and rebuilt from it at any time. Verified
+  after the first real run: 1,348 rows, all 1,348 identical to what the old
+  query returned.
+
+### The window is a data decision again, not a cost one
+
+`PRICE_WINDOW_DAYS` was cut 30 → 10 during the incident and **restored to 30
+the same day**, because materialising removed the reason to cut it. It now
+sizes only the once-nightly rebuild: ~120k rows read per night at a full 30
+days, against a 5M daily allowance. Ask what it should be based on how long a
+card may keep quoting a stale price — never based on cost.
+
+### If this comes back
+
+Check `wrangler d1 info scoutpost` first: `rows_read_24h` against
+`read_queries_24h` gives rows-per-query immediately, and that ratio is the
+whole diagnosis. Then measure a single query with
+`wrangler d1 execute --command` and read `rows_read` from the JSON — that is
+how every number in this section was obtained. Beware that those diagnostic
+queries are themselves expensive; each one above cost ~40k.

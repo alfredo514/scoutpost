@@ -11,31 +11,38 @@
  */
 
 /**
- * Latest price row per card. Reused by every cost query.
+ * Latest price per card — read from a table, not computed.
  *
- * The ranking is per-card, not a global "newest date", so a card absent from
- * today's feed keeps its own last known price instead of dropping out of a deck
- * total. That fallback is the whole point of the window function.
+ * This used to be a window function over `price_snapshots`: for each card,
+ * rank its rows by date and take the newest inside a 30-day window. Correct,
+ * and it scanned and partitioned the whole recent history **on every query**.
  *
- * The WHERE clause is what keeps it affordable. Without it this scans every
- * price row ever recorded on every page view — fine at a few thousand rows,
- * ~410k/year later, for identical output. Bounding the scan to the most recent
- * PRICE_WINDOW_DAYS makes the cost constant no matter how deep the history
- * gets, and idx_prices_date serves it.
+ * That cost was constant per query but not constant over time, because the
+ * history grows every night. Measured: 18,300 rows read per query on
+ * 2026-08-28 with 3 days of snapshots, and 39,939 on 2026-09-01 with 7 days
+ * and 20% more cards. /rankings runs six of these per render, so one uncached
+ * view reached ~250,000 rows — and about eighteen views would have spent the
+ * entire 5M/day D1 free-tier allowance. Cloudflare warned at 91%.
  *
- * The tradeoff: a card with no price for longer than the window reads as
- * unpriced rather than quoting a stale figure. That is the better answer — the
- * deck page already shows how many of its cards are priced, so an honest gap is
- * visible where a months-old price would silently look current.
+ * `card_latest_price` holds one row per card and is rebuilt by the nightly
+ * price job (`rebuildLatestPrices` in ingest/src/prices.js). The scan happens
+ * once a day instead of once a query, and the cost stops growing with history
+ * depth entirely.
+ *
+ * The shape is deliberately unchanged: still a CTE called `latest` with
+ * `card_id, market_price, low_price, date`, so every query below reads the
+ * same way it always did. The `rn = 1` predicate is gone — the table holds
+ * only the winning row, so there is nothing left to rank.
+ *
+ * **The fallback still works.** A card missing from today's feed keeps its own
+ * last known price, because the rebuild picks the newest row per card rather
+ * than only today's. And a card with no price inside the window is simply
+ * absent from the table, which reads as unpriced — the same honest gap as
+ * before, just decided nightly instead of per request.
  */
-const PRICE_WINDOW_DAYS = 30;
-
 const LATEST_PRICES = `
   latest AS (
-    SELECT card_id, market_price, low_price, date,
-           ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY date DESC) AS rn
-      FROM price_snapshots
-     WHERE date >= date((SELECT MAX(date) FROM price_snapshots), '-${PRICE_WINDOW_DAYS} day')
+    SELECT card_id, market_price, low_price, date FROM card_latest_price
   )`;
 
 /**
@@ -78,7 +85,7 @@ export async function listEvents(db, { limit = 50, era = '' } = {}) {
                 SUM(COALESCE(p.market_price, 0) * dc.quantity) AS cost
            FROM decks d
            JOIN deck_cards dc ON dc.deck_id = d.id
-           LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
+           LEFT JOIN latest p ON p.card_id = dc.card_id
           GROUP BY d.id
        )
        SELECT e.*,
@@ -133,7 +140,7 @@ export async function getEventDecks(db, eventId) {
               SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced_cards
          FROM decks d
          LEFT JOIN deck_cards dc ON dc.deck_id = d.id
-         LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = dc.card_id
         WHERE d.event_id = ?
         GROUP BY d.id
         ORDER BY d.placement ASC`,
@@ -204,7 +211,7 @@ export async function getDeckCards(db, deckId) {
               ROUND(COALESCE(p.market_price, 0) * dc.quantity, 2) AS line_total
          FROM deck_cards dc
          JOIN cards c ON c.id = dc.card_id
-         LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = dc.card_id
         WHERE dc.deck_id = ?
         ORDER BY dc.section ASC, line_total DESC, c.name ASC`,
     )
@@ -258,7 +265,7 @@ export async function listDecks(db, { limit = 100, era = '', legend = '', q = ''
          FROM decks d
          JOIN events e ON e.id = d.event_id
          LEFT JOIN deck_cards dc ON dc.deck_id = d.id
-         LEFT JOIN latest p ON p.card_id = dc.card_id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = dc.card_id
          ${clause}
         GROUP BY d.id
         ${filter}
@@ -480,7 +487,7 @@ export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ..
               p.market_price
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}
         ORDER BY ${order}
         LIMIT ? OFFSET ?`,
@@ -505,7 +512,7 @@ export async function countCards(db, filters = {}) {
        SELECT COUNT(*) AS n
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}`,
     )
     .bind(...params)
@@ -617,7 +624,7 @@ export async function getCard(db, id) {
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
          LEFT JOIN card_text t ON t.card_id = c.id
-         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = c.id
         WHERE c.id = ?`,
     )
     .bind(id)
@@ -666,7 +673,7 @@ export async function topCards(db, { limit = 25, ...filters } = {}) {
               p.market_price, p.date AS price_date
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}
         ORDER BY p.market_price DESC, c.name ASC
         LIMIT ?`,
@@ -698,7 +705,7 @@ export async function marketStats(db, filters = {}) {
                 MAX(p.market_price) AS top,
                 SUM(CASE WHEN p.market_price >= 50 THEN 1 ELSE 0 END) AS over50
            FROM cards c
-           LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+           LEFT JOIN latest p ON p.card_id = c.id
            ${totals.clause}`,
       )
       .bind(...totals.params)
@@ -714,7 +721,7 @@ export async function marketStats(db, filters = {}) {
                   ROW_NUMBER() OVER (ORDER BY p.market_price) AS pos,
                   COUNT(*) OVER () AS n
              FROM cards c
-             LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+             LEFT JOIN latest p ON p.card_id = c.id
              ${middle.clause}
          )
          SELECT AVG(px) AS median FROM priced WHERE pos IN ((n + 1) / 2, (n + 2) / 2)`,
@@ -748,7 +755,7 @@ export async function metalCount(db, filters = {}) {
        SELECT COUNT(*) AS n
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+         LEFT JOIN latest p ON p.card_id = c.id
         WHERE ${clause}`,
     )
     .bind(...params)
@@ -773,7 +780,7 @@ export async function setValueTable(db) {
          SELECT c.set_id, c.id, c.name, p.market_price AS px,
                 ROW_NUMBER() OVER (PARTITION BY c.set_id ORDER BY p.market_price DESC) AS px_rank
            FROM cards c
-           LEFT JOIN latest p ON p.card_id = c.id AND p.rn = 1
+           LEFT JOIN latest p ON p.card_id = c.id
        )
        SELECT s.id, s.name, s.release_date,
               COUNT(j.id) AS cards,

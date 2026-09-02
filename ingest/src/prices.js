@@ -304,6 +304,66 @@ async function lastGoodRowCount(db, today) {
  * Validate the day's rows against absolute and relative floors, then write.
  * Throws (skipping the day entirely) rather than writing a suspect dataset.
  */
+/**
+ * How far back "latest price per card" is allowed to look.
+ *
+ * **This no longer costs anything per page.** Before card_latest_price existed
+ * the window sized a scan that ran on every query, so shrinking it was the only
+ * lever on read cost. Now it sizes only the once-nightly rebuild: at a full 30
+ * days that is ~40,000 price rows, about 120k rows read once a day, against a
+ * 5M daily allowance. It was briefly cut to 10 during the incident on
+ * 2026-09-01 and restored the same day, because the reason for cutting it had
+ * been removed.
+ *
+ * So this is a DATA question again, not a cost one: how long may a card keep
+ * quoting its last known price before it reads as unpriced? Thirty days is
+ * generous for a feed that publishes daily, and the pages show how many cards
+ * are priced, so an honest gap stays visible where a stale figure would quietly
+ * look current.
+ */
+const PRICE_WINDOW_DAYS = 30;
+
+/**
+ * Rebuild `card_latest_price` — one row per card, its newest price inside the
+ * window.
+ *
+ * This is why the site is affordable. Computing this per query with a window
+ * function cost 39,939 rows read EACH TIME, six times per /rankings render, and
+ * grew every night as history accumulated; it reached 91% of D1's 5M/day free
+ * allowance. Doing it once a night costs the same scan once.
+ *
+ * DELETE then INSERT rather than an upsert, deliberately: a card whose last
+ * price has aged out of the window must DISAPPEAR from this table, and an
+ * upsert would leave the stale row behind forever. Two statements, batched so
+ * they land together — a half-applied rebuild would blank every price on the
+ * site.
+ *
+ * Derived data. price_snapshots stays the source of truth and this can be
+ * rebuilt from it at any time.
+ */
+export async function rebuildLatestPrices(db) {
+  await db.batch([
+    db.prepare('DELETE FROM card_latest_price'),
+    db.prepare(
+      `INSERT INTO card_latest_price (card_id, market_price, low_price, date, updated_at)
+       SELECT card_id, market_price, low_price, date, datetime('now')
+         FROM (
+           SELECT card_id, market_price, low_price, date,
+                  ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY date DESC) AS rn
+             FROM price_snapshots
+            WHERE date >= date((SELECT MAX(date) FROM price_snapshots),
+                               '-${PRICE_WINDOW_DAYS} day')
+         )
+        WHERE rn = 1`,
+    ),
+  ]);
+
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM card_latest_price').first();
+  const n = row?.n ?? 0;
+  log(`prices: card_latest_price rebuilt — ${n} cards`);
+  return n;
+}
+
 export async function writePrices(db, { rows, date }) {
   if (rows.length < MIN_PRICE_ROWS) {
     throw new IngestError(

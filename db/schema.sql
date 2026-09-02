@@ -99,6 +99,24 @@ CREATE INDEX IF NOT EXISTS idx_decks_event ON decks(event_id, placement);
 -- section is part of the key on purpose: a card can legitimately appear in both
 -- the maindeck and the sideboard (e.g. 2x main + 1x side). Keying on
 -- (deck_id, card_id) alone silently merges those two rows and loses a card.
+-- One row per card: its most recent price inside PRICE_WINDOW_DAYS.
+--
+-- A materialised view of price_snapshots, rebuilt nightly by the price job.
+-- It exists purely for read cost: computing "latest price per card" with a
+-- window function on every query scanned the whole recent history each time,
+-- which grew every night and reached 91% of D1's 5M/day read allowance. Here
+-- the scan happens once a day.
+--
+-- Derived data. price_snapshots remains the source of truth; this table can be
+-- dropped and rebuilt from it at any time.
+CREATE TABLE IF NOT EXISTS card_latest_price (
+  card_id      TEXT PRIMARY KEY REFERENCES cards(id),
+  market_price REAL,
+  low_price    REAL,
+  date         TEXT NOT NULL,
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS deck_cards (
   deck_id   TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   card_id   TEXT NOT NULL REFERENCES cards(id),
