@@ -201,6 +201,15 @@ export async function onRequestGet({ request, env }) {
 
   const unpriced = stats.cards - stats.priced;
 
+  /* The date the headline numbers are as of.
+   *
+   * Taken off the top board's own rows — topCards already selects price_date,
+   * so this costs no extra query — and never from the movers window, which is
+   * null until there are two days of history. Reading it from there printed a
+   * bare "Prices as of ." on a site whose whole claim is that the prices are
+   * current. No date, no sentence. */
+  const asOf = top[0]?.price_date ?? moveWindow?.to ?? null;
+
   const topRows = top.length
     ? top
         .map(
@@ -241,7 +250,7 @@ export async function onRequestGet({ request, env }) {
     )
     .join('');
 
-  // The movers moveWindow is whatever history exists, not a fixed week — the page
+  // The movers window is whatever history exists, not a fixed week — the page
   // prints the real dates so nobody reads a three-day swing as a weekly trend.
   const windowNote = moveWindow
     ? `${formatDate(moveWindow.from)} → ${formatDate(moveWindow.to)}`
@@ -253,7 +262,7 @@ export async function onRequestGet({ request, env }) {
   <p class="lede">
     Where the money in Riftbound sits today, and what moved.
     ${active.length ? `Showing <b>${esc(active.join(' · '))}</b>.` : ''}
-    ${stats.priced ? `Prices as of ${esc(formatDate(moveWindow ? moveWindow.to : ''))}.` : ''}
+    ${stats.priced && asOf ? `Prices as of ${esc(formatDate(asOf))}.` : ''}
   </p>
 </div>
 
@@ -358,13 +367,13 @@ ${adSlot('leaderboard')}
       rows: risers,
       title: 'Risers',
       note: 'Market price up',
-      emptyText: 'Nothing rose in this slice over the moveWindow.',
+      emptyText: 'Nothing rose in this slice over the window.',
     })}
     ${moverBoard(env, {
       rows: fallers,
       title: 'Fallers',
       note: 'Market price down',
-      emptyText: 'Nothing fell in this slice over the moveWindow.',
+      emptyText: 'Nothing fell in this slice over the window.',
     })}
   </div>
   <p class="source-note">

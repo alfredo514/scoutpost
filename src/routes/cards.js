@@ -19,7 +19,16 @@
  * anything across a navigation and every filter click is a navigation.
  */
 
-import { adSlot, chipLink, esc, htmlResponse, layout, money, url } from '../lib/render.js';
+import {
+  adSlot,
+  chipLink,
+  esc,
+  formatDate,
+  htmlResponse,
+  layout,
+  money,
+  url,
+} from '../lib/render.js';
 import {
   cardFacets,
   countCards,
@@ -97,7 +106,7 @@ function cardTile(env, c) {
 
   // Clicking a tile goes to the card's own page, which carries the large art
   // plus its transcribed text — strictly more than the old in-page overlay.
-  const open = url(env, `/cards/${esc(c.id)}`);
+  const open = url(env, `/cards/${c.id}`);
 
   return `<li class="card-tile">
       <a class="tile-open" href="${esc(open)}" aria-label="${esc(c.name)}">
@@ -342,7 +351,7 @@ ${/* A GET form, so searching produces a real URL and needs no JavaScript. The
 <div class="section-head section-head--results">
   <h2>${esc(total.toLocaleString('en-US'))} card${total === 1 ? '' : 's'}</h2>
   <div class="results-tools">
-    ${priceDate ? `<span class="as-of">Prices ${esc(priceDate)}</span>` : ''}
+    ${priceDate ? `<span class="as-of">Prices ${esc(formatDate(priceDate))}</span>` : ''}
     ${sortMenu}
   </div>
 </div>

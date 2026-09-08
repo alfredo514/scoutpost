@@ -253,12 +253,21 @@ ${adSlot('leaderboard')}
   </table>
 </div>
 
-${hiddenByFilterNote(env, {
-  path: '/decks',
-  total: totalDecks,
-  shown: decks.length,
-  noun: 'deck',
-})}
+${/* Only when the SET filter is the thing doing the hiding. The note says
+     "N older decks from earlier sets are hidden" and links to ?set=all — with
+     a Legend or a search also narrowing the table, both halves of that are
+     false, and on ?set=all it offered a link to the page you are already on.
+     A Legend or a search has its own clear affordance above. */ ''}
+${
+  activeLegend || searchQ
+    ? ''
+    : hiddenByFilterNote(env, {
+        path: '/decks',
+        total: totalDecks,
+        shown: decks.length,
+        noun: 'deck',
+      })
+}
 
 ${
   priceDate

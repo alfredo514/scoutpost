@@ -223,6 +223,24 @@
       card.classList.toggle('is-active', ownedCount > 0);
     }
 
+    /* One card can hold TWO rows: a card may legitimately be in both the
+     * maindeck and the sideboard, which is why deck_cards is keyed on section
+     * (§5). Both rows carry the same data-card, so a toggle has to repaint
+     * every row for that id — not just its own. Otherwise clicking the
+     * maindeck copy left the sideboard copy looking unowned while the total
+     * had already deducted it, which is a wrong number on screen. */
+    var painters = {};
+
+    function register(id, fn) {
+      if (!painters[id]) painters[id] = [];
+      painters[id].push(fn);
+    }
+
+    function repaint(id) {
+      var list = painters[id] || [];
+      for (var j = 0; j < list.length; j++) list[j]();
+    }
+
     for (var i = 0; i < rows.length; i++) {
       (function (row) {
         var id = row.getAttribute('data-card');
@@ -231,17 +249,22 @@
         var name = row.querySelector('.card-name');
         var btn = ownToggle('I own ' + (name ? name.textContent : 'this card'), !!owned[id]);
 
-        btn.addEventListener('click', function () {
-          owned[id] = !owned[id];
+        function paint() {
           btn.setAttribute('aria-pressed', owned[id] ? 'true' : 'false');
           row.classList.toggle('is-owned', !!owned[id]);
+        }
+        register(id, paint);
+
+        btn.addEventListener('click', function () {
+          owned[id] = !owned[id];
+          repaint(id);
           writeOwned(owned);
           recount();
         });
 
         cell.classList.add('has-own-toggle');
         cell.insertBefore(btn, cell.firstChild);
-        if (owned[id]) row.classList.add('is-owned');
+        paint();
       })(rows[i]);
     }
 
@@ -330,10 +353,14 @@
           }
         }
 
+        /* No focus management on the last click. The button removes itself
+           when the board is fully shown, and `status` is a span with no
+           tabindex — calling focus() on it looked like a feature check and
+           could never move focus anywhere. The aria-live region already
+           announces the change. */
         btn.addEventListener('click', function () {
           shown = Math.min(shown + step, rows.length);
           paint();
-          if (shown >= rows.length) status.focus && status.focus();
         });
 
         paint();
