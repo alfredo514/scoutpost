@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS cards (
                                            -- changed name means changed art: re-mirror.
                                            -- image_url is the 778KB original PNG:
                                            -- canonical source, never served
+  -- Denormalised from card_latest_price by the nightly price job. Pages read
+  -- these columns and never a price join — see §26.
+  market_price      REAL,
+  low_price         REAL,
+  price_date        TEXT,
   tcgcsv_product_id INTEGER,               -- NULL until matched to a TCGplayer product
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -51,6 +56,9 @@ CREATE TABLE IF NOT EXISTS cards (
 CREATE INDEX IF NOT EXISTS idx_cards_set       ON cards(set_id, collector_number);
 CREATE INDEX IF NOT EXISTS idx_cards_name      ON cards(name);
 CREATE INDEX IF NOT EXISTS idx_cards_product   ON cards(tcgcsv_product_id);
+-- The dominant sort on /cards and /rankings. Turns "top 50 by price" from a
+-- 1,419-row scan plus a sort into a 50-row index read: 4,034 -> 50.
+CREATE INDEX IF NOT EXISTS idx_cards_price     ON cards(market_price DESC);
 
 -- ─────────────────────────── Prices ────────────────────────────
 
@@ -91,6 +99,16 @@ CREATE TABLE IF NOT EXISTS decks (
   player_name TEXT,
   legend      TEXT,                        -- the deck's legend / champion identity
   notes       TEXT,
+  -- Precomputed nightly, immediately after the card prices they depend on.
+  -- This reverses $8's "never stored" rule; $26 explains why it is still safe.
+  total_cost     REAL,
+  main_cost      REAL,
+  side_cost      REAL,
+  card_count     INTEGER,
+  main_count     INTEGER,
+  side_count     INTEGER,
+  distinct_cards INTEGER,
+  priced_cards   INTEGER,
   UNIQUE (event_id, placement)
 );
 
