@@ -25,6 +25,7 @@ import { fetchPromoCards, promoSetMeta } from './promos.js';
 import {
   collectPrices,
   fetchGroups,
+  rebuildDeckCosts,
   rebuildLatestPrices,
   snapshotDeckCosts,
   writeCardText,
@@ -97,6 +98,9 @@ async function runPrices(env, trigger) {
     // Immediately after the snapshots land: every page reads this table, so a
     // day where it is not rebuilt is a day the site shows yesterday's prices.
     await rebuildLatestPrices(env.DB);
+
+    // Strictly after the card prices land: this prices decks against them.
+    await rebuildDeckCosts(env.DB);
     await writeProductLinks(env.DB, collected.productLinks);
     // Card text rides along with the same product walk — see writeCardText.
     const textRows = await writeCardText(env.DB, collected.cardText ?? []);

@@ -11,39 +11,28 @@
  */
 
 /**
- * Latest price per card — read from a table, not computed.
+ * Prices live ON the card row. There is no price join.
  *
- * This used to be a window function over `price_snapshots`: for each card,
- * rank its rows by date and take the newest inside a 30-day window. Correct,
- * and it scanned and partitioned the whole recent history **on every query**.
+ * The history behind this is worth keeping, because each step looked like the
+ * answer at the time:
  *
- * That cost was constant per query but not constant over time, because the
- * history grows every night. Measured: 18,300 rows read per query on
- * 2026-08-28 with 3 days of snapshots, and 39,939 on 2026-09-01 with 7 days
- * and 20% more cards. /rankings runs six of these per render, so one uncached
- * view reached ~250,000 rows — and about eighteen views would have spent the
- * entire 5M/day D1 free-tier allowance. Cloudflare warned at 91%.
+ *   1. A window function over `price_snapshots`, per query. ~40,000 rows read
+ *      each, growing nightly. Nearly took the site off the air (§25).
+ *   2. A materialised `card_latest_price` table, joined per query. ~4,000 rows
+ *      read each — 10x better, and still enough to burn 5M/day at about a
+ *      hundred page views, because every query still walked 1,419 cards and
+ *      1,349 prices and then sorted them.
+ *   3. Here: `cards.market_price`, `cards.low_price`, `cards.price_date`,
+ *      written nightly by the price job, with `idx_cards_price` on
+ *      `market_price DESC`.
  *
- * `card_latest_price` holds one row per card and is rebuilt by the nightly
- * price job (`rebuildLatestPrices` in ingest/src/prices.js). The scan happens
- * once a day instead of once a query, and the cost stops growing with history
- * depth entirely.
+ * The index is the part that matters. "Top 50 by price" was a full scan plus a
+ * sort; it is now an index range read. **Measured: 4,034 rows read → 50.**
  *
- * The shape is deliberately unchanged: still a CTE called `latest` with
- * `card_id, market_price, low_price, date`, so every query below reads the
- * same way it always did. The `rn = 1` predicate is gone — the table holds
- * only the winning row, so there is nothing left to rank.
- *
- * **The fallback still works.** A card missing from today's feed keeps its own
- * last known price, because the rebuild picks the newest row per card rather
- * than only today's. And a card with no price inside the window is simply
- * absent from the table, which reads as unpriced — the same honest gap as
- * before, just decided nightly instead of per request.
+ * Deck costs are precomputed the same way, onto `decks` — see the note on
+ * listDecks. Both are derived data: `price_snapshots` and `deck_cards` remain
+ * the source of truth and either can be rebuilt from them.
  */
-const LATEST_PRICES = `
-  latest AS (
-    SELECT card_id, market_price, low_price, date FROM card_latest_price
-  )`;
 
 /**
  * The Legend's art, for a deck listed among others.
@@ -74,28 +63,29 @@ export async function latestPriceDate(db) {
  * `era` filters to the set that was legal when the event was played. It is
  * derived from dates, not stored, so a new set needs no migration.
  */
+/**
+ * Events, newest first, each with the cost spread across its top 8.
+ *
+ * Reads `decks.total_cost`, which the price job writes nightly — it does not
+ * aggregate deck_cards. That aggregation cost ~4,170 rows read per view; this
+ * reads 79.
+ *
+ * `era` moved from HAVING to WHERE. It was in a HAVING only because the query
+ * needed a GROUP BY to aggregate; with the costs already stored there is
+ * nothing to group, and EVENT_ERA is a correlated subquery that works fine as
+ * a WHERE predicate.
+ */
 export async function listEvents(db, { limit = 50, era = '' } = {}) {
-  const filter = era ? `HAVING era = ?` : '';
+  const filter = era ? `WHERE ${EVENT_ERA} = ?` : '';
   const params = era ? [era, limit] : [limit];
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES},
-       deck_costs AS (
-         SELECT d.id AS deck_id, d.event_id,
-                SUM(COALESCE(p.market_price, 0) * dc.quantity) AS cost
-           FROM decks d
-           JOIN deck_cards dc ON dc.deck_id = d.id
-           LEFT JOIN latest p ON p.card_id = dc.card_id
-          GROUP BY d.id
-       )
-       SELECT e.*,
+      `SELECT e.*,
               ${EVENT_ERA} AS era,
-              COUNT(dc.deck_id)  AS deck_count,
-              MAX(dc.cost)       AS max_cost,
-              MIN(dc.cost)       AS min_cost
+              (SELECT COUNT(*)        FROM decks d WHERE d.event_id = e.id) AS deck_count,
+              (SELECT MAX(total_cost) FROM decks d WHERE d.event_id = e.id) AS max_cost,
+              (SELECT MIN(total_cost) FROM decks d WHERE d.event_id = e.id) AS min_cost
          FROM events e
-         LEFT JOIN deck_costs dc ON dc.event_id = e.id
-        GROUP BY e.id
         ${filter}
         ORDER BY e.date DESC
         LIMIT ?`,
@@ -125,24 +115,13 @@ export async function getEvent(db, slug) {
 export async function getEventDecks(db, eventId) {
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT d.id, d.placement, d.player_name, d.legend, d.notes,
+      `SELECT d.id, d.placement, d.player_name, d.legend, d.notes,
               ${LEGEND_ART},
-              ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
-              ROUND(SUM(CASE WHEN dc.section = 'main'
-                             THEN COALESCE(p.market_price, 0) * dc.quantity ELSE 0 END), 2) AS main_cost,
-              ROUND(SUM(CASE WHEN dc.section = 'sideboard'
-                             THEN COALESCE(p.market_price, 0) * dc.quantity ELSE 0 END), 2) AS side_cost,
-              SUM(CASE WHEN dc.section = 'main' THEN dc.quantity ELSE 0 END) AS main_count,
-              SUM(CASE WHEN dc.section = 'sideboard' THEN dc.quantity ELSE 0 END) AS side_count,
-              SUM(dc.quantity)                                          AS card_count,
-              COUNT(dc.card_id)                                         AS distinct_cards,
-              SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced_cards
+              d.total_cost, d.main_cost, d.side_cost,
+              d.main_count, d.side_count, d.card_count,
+              d.distinct_cards, d.priced_cards
          FROM decks d
-         LEFT JOIN deck_cards dc ON dc.deck_id = d.id
-         LEFT JOIN latest p ON p.card_id = dc.card_id
         WHERE d.event_id = ?
-        GROUP BY d.id
         ORDER BY d.placement ASC`,
     )
     .bind(eventId)
@@ -202,16 +181,14 @@ export async function deckSiblings(db, { eventId, deckId, legend }) {
 export async function getDeckCards(db, deckId) {
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
+      `       SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
               c.rarity, c.card_type, c.image_thumb_url, c.image_large_url,
               c.tcgcsv_product_id,
               dc.quantity, dc.section,
-              p.market_price, p.low_price, p.date AS price_date,
-              ROUND(COALESCE(p.market_price, 0) * dc.quantity, 2) AS line_total
+              c.market_price, c.low_price, c.price_date,
+              ROUND(COALESCE(c.market_price, 0) * dc.quantity, 2) AS line_total
          FROM deck_cards dc
          JOIN cards c ON c.id = dc.card_id
-         LEFT JOIN latest p ON p.card_id = dc.card_id
         WHERE dc.deck_id = ?
         ORDER BY dc.section ASC, line_total DESC, c.name ASC`,
     )
@@ -248,27 +225,25 @@ export async function listDecks(db, { limit = 100, era = '', legend = '', q = ''
     const like = `%${String(q).toLowerCase()}%`;
     params.push(like, like);
   }
+  // era is a correlated subquery, so it belongs in the WHERE with everything
+  // else now that there is no aggregate to group by.
+  if (era) {
+    where.push(`${EVENT_ERA} = ?`);
+    params.push(era);
+  }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const filter = era ? 'HAVING era = ?' : '';
-  if (era) params.push(era);
   params.push(limit);
 
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT d.id, d.placement, d.player_name, d.legend,
+      `SELECT d.id, d.placement, d.player_name, d.legend,
               e.id AS event_slug, e.name AS event_name, e.date AS event_date,
               ${EVENT_ERA} AS era,
               ${LEGEND_ART},
-              ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2) AS total_cost,
-              SUM(dc.quantity) AS card_count
+              d.total_cost, d.card_count
          FROM decks d
          JOIN events e ON e.id = d.event_id
-         LEFT JOIN deck_cards dc ON dc.deck_id = d.id
-         LEFT JOIN latest p ON p.card_id = dc.card_id
          ${clause}
-        GROUP BY d.id
-        ${filter}
         ORDER BY e.date DESC, d.placement ASC
         LIMIT ?`,
     )
@@ -427,8 +402,8 @@ function cardFilterParts({ type, color, set, rarity, printing, q, priced, metal 
     const like = `%${String(q).toLowerCase()}%`;
     params.push(like, like);
   }
-  if (priced === 'yes') where.push('p.market_price IS NOT NULL');
-  if (priced === 'no') where.push('p.market_price IS NULL');
+  if (priced === 'yes') where.push('c.market_price IS NOT NULL');
+  if (priced === 'no') where.push('c.market_price IS NULL');
   // Opt-in: absent means no condition, so /cards is unaffected and still shows
   // every card. Only /rankings asks for this, and it asks on every request.
   if (metal === 'hide') where.push(METAL_MARKER);
@@ -456,7 +431,7 @@ function cardFilterSql(filters) {
  * A fixed map rather than interpolated input — the value arrives from a query
  * string, and ORDER BY cannot be parameterised.
  */
-const UNPRICED_LAST = 'CASE WHEN p.market_price IS NULL THEN 1 ELSE 0 END';
+const UNPRICED_LAST = 'CASE WHEN c.market_price IS NULL THEN 1 ELSE 0 END';
 
 /* Rarity has a meaningful order that alphabetical destroys. */
 const RARITY_RANK = `CASE c.rarity
@@ -464,13 +439,13 @@ const RARITY_RANK = `CASE c.rarity
   WHEN 'epic' THEN 4 WHEN 'showcase' THEN 5 ELSE 6 END`;
 
 const CARD_SORTS = {
-  price: `${UNPRICED_LAST}, p.market_price DESC, c.name ASC`,
-  'price-asc': `${UNPRICED_LAST}, p.market_price ASC, c.name ASC`,
+  price: `${UNPRICED_LAST}, c.market_price DESC, c.name ASC`,
+  'price-asc': `${UNPRICED_LAST}, c.market_price ASC, c.name ASC`,
   name: 'c.name ASC, s.release_date DESC',
   'name-desc': 'c.name DESC, s.release_date DESC',
   set: 's.release_date DESC, c.collector_number ASC, c.variant ASC',
   'set-asc': 's.release_date ASC, c.collector_number ASC, c.variant ASC',
-  rarity: `${RARITY_RANK} DESC, ${UNPRICED_LAST}, p.market_price DESC`,
+  rarity: `${RARITY_RANK} DESC, ${UNPRICED_LAST}, c.market_price DESC`,
   'rarity-asc': `${RARITY_RANK} ASC, c.name ASC`,
 };
 
@@ -479,15 +454,13 @@ export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ..
   const order = CARD_SORTS[sort] ?? CARD_SORTS.price;
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+      `       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
               c.rarity, c.card_type, c.faction,
               c.image_thumb_url, c.image_large_url,
               s.name AS set_name,
-              p.market_price
+              c.market_price
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}
         ORDER BY ${order}
         LIMIT ? OFFSET ?`,
@@ -501,18 +474,16 @@ export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ..
  * How many cards match a filter — drives the pager and the result count.
  *
  * Joins prices even though it counts rows, because the `priced` filter tests
- * `p.market_price`. Counting against a different FROM clause than the listing
+ * `c.market_price`. Counting against a different FROM clause than the listing
  * uses is how a pager ends up disagreeing with its own results.
  */
 export async function countCards(db, filters = {}) {
   const { clause, params } = cardFilterSql(filters);
   const row = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT COUNT(*) AS n
+      `       SELECT COUNT(*) AS n
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}`,
     )
     .bind(...params)
@@ -616,15 +587,13 @@ const EVENT_ERA = `
 export async function getCard(db, id) {
   return db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT c.*, s.name AS set_name, s.release_date,
+      `       SELECT c.*, s.name AS set_name, s.release_date,
               t.energy_cost, t.power_cost, t.might, t.type_line,
               t.tags, t.domain, t.rules_text, t.flavor_text,
-              p.market_price, p.low_price, p.date AS price_date
+              c.market_price, c.low_price, c.price_date
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
          LEFT JOIN card_text t ON t.card_id = c.id
-         LEFT JOIN latest p ON p.card_id = c.id
         WHERE c.id = ?`,
     )
     .bind(id)
@@ -665,17 +634,15 @@ export async function topCards(db, { limit = 25, ...filters } = {}) {
   const { clause, params } = cardFilterSql({ ...filters, priced: 'yes' });
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+      `       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
               c.variant, c.rarity, c.card_type, c.faction,
               c.image_thumb_url, c.image_large_url,
               s.name AS set_name,
-              p.market_price, p.date AS price_date
+              c.market_price, c.price_date
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id
          ${clause}
-        ORDER BY p.market_price DESC, c.name ASC
+        ORDER BY c.market_price DESC, c.name ASC
         LIMIT ?`,
     )
     .bind(...params, limit)
@@ -698,14 +665,12 @@ export async function marketStats(db, filters = {}) {
   const [agg, med] = await Promise.all([
     db
       .prepare(
-        `WITH ${LATEST_PRICES}
-         SELECT COUNT(*) AS cards,
-                SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced,
-                SUM(p.market_price) AS total,
-                MAX(p.market_price) AS top,
-                SUM(CASE WHEN p.market_price >= 50 THEN 1 ELSE 0 END) AS over50
+        `         SELECT COUNT(*) AS cards,
+                SUM(CASE WHEN c.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced,
+                SUM(c.market_price) AS total,
+                MAX(c.market_price) AS top,
+                SUM(CASE WHEN c.market_price >= 50 THEN 1 ELSE 0 END) AS over50
            FROM cards c
-           LEFT JOIN latest p ON p.card_id = c.id
            ${totals.clause}`,
       )
       .bind(...totals.params)
@@ -715,13 +680,11 @@ export async function marketStats(db, filters = {}) {
     // straddling pair for an even one.
     db
       .prepare(
-        `WITH ${LATEST_PRICES},
-         priced AS (
-           SELECT p.market_price AS px,
-                  ROW_NUMBER() OVER (ORDER BY p.market_price) AS pos,
+        `WITH priced AS (
+           SELECT c.market_price AS px,
+                  ROW_NUMBER() OVER (ORDER BY c.market_price) AS pos,
                   COUNT(*) OVER () AS n
              FROM cards c
-             LEFT JOIN latest p ON p.card_id = c.id
              ${middle.clause}
          )
          SELECT AVG(px) AS median FROM priced WHERE pos IN ((n + 1) / 2, (n + 2) / 2)`,
@@ -751,11 +714,9 @@ export async function metalCount(db, filters = {}) {
   const clause = [...where, "c.name LIKE '%(Metal)%'"].join(' AND ');
   const row = await db
     .prepare(
-      `WITH ${LATEST_PRICES}
-       SELECT COUNT(*) AS n
+      `       SELECT COUNT(*) AS n
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
-         LEFT JOIN latest p ON p.card_id = c.id
         WHERE ${clause}`,
     )
     .bind(...params)
@@ -775,12 +736,10 @@ export async function metalCount(db, filters = {}) {
 export async function setValueTable(db) {
   const { results } = await db
     .prepare(
-      `WITH ${LATEST_PRICES},
-       j AS (
-         SELECT c.set_id, c.id, c.name, p.market_price AS px,
-                ROW_NUMBER() OVER (PARTITION BY c.set_id ORDER BY p.market_price DESC) AS px_rank
+      `WITH j AS (
+         SELECT c.set_id, c.id, c.name, c.market_price AS px,
+                ROW_NUMBER() OVER (PARTITION BY c.set_id ORDER BY c.market_price DESC) AS px_rank
            FROM cards c
-           LEFT JOIN latest p ON p.card_id = c.id
        )
        SELECT s.id, s.name, s.release_date,
               COUNT(j.id) AS cards,

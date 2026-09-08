@@ -356,11 +356,78 @@ export async function rebuildLatestPrices(db) {
          )
         WHERE rn = 1`,
     ),
+
+    // ── and onto the card row itself ──
+    //
+    // This is what the pages actually read. card_latest_price above is kept as
+    // the intermediate: it is the thing that knows how to pick "newest inside
+    // the window", and copying from it is cheaper and clearer than repeating
+    // that window function here.
+    //
+    // Every card is updated, including to NULL — a card whose last price aged
+    // out of the window must stop showing one, and only an unconditional
+    // update achieves that.
+    db.prepare(
+      `UPDATE cards SET
+         market_price = (SELECT p.market_price FROM card_latest_price p WHERE p.card_id = cards.id),
+         low_price    = (SELECT p.low_price    FROM card_latest_price p WHERE p.card_id = cards.id),
+         price_date   = (SELECT p.date         FROM card_latest_price p WHERE p.card_id = cards.id)`,
+    ),
   ]);
 
   const row = await db.prepare('SELECT COUNT(*) AS n FROM card_latest_price').first();
   const n = row?.n ?? 0;
-  log(`prices: card_latest_price rebuilt — ${n} cards`);
+  log(`prices: card_latest_price rebuilt — ${n} cards, denormalised onto cards`);
+  return n;
+}
+
+/**
+ * Recompute every deck's cost onto the deck row.
+ *
+ * /decks and /events used to aggregate deck_cards and join prices on every
+ * view — ~4,170 rows read per render. Reading a stored column is 79.
+ *
+ * **This reverses the rule in §8** that build cost is computed at read time and
+ * never stored. That rule existed so a cost could never be stale, and it is
+ * preserved by *when* this runs: immediately after the prices it depends on,
+ * in the same job. The number is exactly as current as the prices are, which
+ * is all "computed at read time" ever bought — and `deck_cards` remains the
+ * source of truth, so this is rebuildable at any moment.
+ *
+ * Must run AFTER the cards table has its new prices, or it prices the deck
+ * against yesterday.
+ */
+export async function rebuildDeckCosts(db) {
+  await db
+    .prepare(
+      `UPDATE decks SET
+         total_cost = (SELECT ROUND(SUM(COALESCE(c.market_price,0) * dc.quantity), 2)
+                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
+                        WHERE dc.deck_id = decks.id),
+         main_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section = 'main'
+                                             THEN COALESCE(c.market_price,0) * dc.quantity
+                                             ELSE 0 END), 2)
+                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
+                        WHERE dc.deck_id = decks.id),
+         side_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section = 'sideboard'
+                                             THEN COALESCE(c.market_price,0) * dc.quantity
+                                             ELSE 0 END), 2)
+                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
+                        WHERE dc.deck_id = decks.id),
+         card_count = (SELECT SUM(dc.quantity) FROM deck_cards dc WHERE dc.deck_id = decks.id),
+         main_count = (SELECT SUM(CASE WHEN dc.section = 'main' THEN dc.quantity ELSE 0 END)
+                         FROM deck_cards dc WHERE dc.deck_id = decks.id),
+         side_count = (SELECT SUM(CASE WHEN dc.section = 'sideboard' THEN dc.quantity ELSE 0 END)
+                         FROM deck_cards dc WHERE dc.deck_id = decks.id),
+         distinct_cards = (SELECT COUNT(*) FROM deck_cards dc WHERE dc.deck_id = decks.id),
+         priced_cards   = (SELECT COUNT(*) FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
+                            WHERE dc.deck_id = decks.id AND c.market_price IS NOT NULL)`,
+    )
+    .run();
+
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM decks WHERE total_cost IS NOT NULL').first();
+  const n = row?.n ?? 0;
+  log(`prices: deck costs recomputed — ${n} decks`);
   return n;
 }
 
