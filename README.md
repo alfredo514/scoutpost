@@ -181,11 +181,24 @@ See `data/events/README.md`.
 
 ## How build cost is calculated
 
-Deck cost is **computed at read time**, never stored:
+Deck cost is **precomputed nightly** onto `decks.total_cost`, in the price job,
+immediately after the prices it depends on:
 
 ```
 cost = Σ (quantity × most recent market_price for that card)
 ```
+
+An earlier version of this section said the cost was computed at read time and
+never stored. That reversed on 2026-09-08: aggregating `deck_cards` and joining
+prices on every view cost about 4,170 rows read per render and was one of two
+things that exhausted D1's free tier twice in a week. Reading a stored column
+costs 79.
+
+The rule it replaced existed so a cost could never be stale, and that is
+preserved by **when** the recompute runs rather than by recomputing per view —
+the number is exactly as current as the prices behind it, which is all read-time
+computation ever bought. `deck_cards` and `price_snapshots` remain the source of
+truth, and both derived sets are rebuildable from them at any time.
 
 "Most recent **per card**", not "most recent overall" — if a card missed a day,
 it falls back to its own last known price rather than dropping out of the total
@@ -193,15 +206,16 @@ and making a deck look cheaper than it is. Pages also report how many cards in a
 list are actually priced, so a partial total is visibly partial.
 
 That fallback only looks back **30 days** (`PRICE_WINDOW_DAYS` in
-`src/lib/queries.js`). The window is not cosmetic: without it the query scans
-every price row ever recorded on every page view, which is nothing at a few
-thousand rows and ~410k/year later, for identical output. Bounding it keeps the
-read cost flat however deep the history gets. A card unpriced for longer than
-the window reads as unpriced rather than quoting a stale figure — which is the
-more honest answer, since the page shows the priced-card count either way.
+`ingest/src/prices.js`, where it moved when the rebuild did). It no longer sizes
+anything on the read path — only the once-nightly rebuild — so it is a data
+question, not a cost one: how long may a card keep quoting its last known price
+before it should read as unpriced? A card unpriced for longer than the window
+reads as unpriced rather than quoting a stale figure, which is the more honest
+answer since the page shows the priced-card count either way.
 
-`deck_cost_snapshots` records the daily total for future charting. It is history
-only; no page reads a cost from it.
+`deck_cost_snapshots` records the daily total for future charting, copied from
+the same columns the site displays. It is history only; no page reads a cost
+from it.
 
 ---
 

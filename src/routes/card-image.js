@@ -14,7 +14,6 @@
  * card on its next run.
  */
 
-
 const SIZES = new Set(['small', 'large']);
 
 export async function onRequestGet({ request, env, params }) {

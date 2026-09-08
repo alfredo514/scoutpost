@@ -3,13 +3,19 @@
  *
  * WHY THIS EXISTS
  * softsauce.co is served from an origin (an nginx box behind Cloudflare), while
- * Scoutpost lives on Cloudflare Pages. A Worker route lets one path on the
- * existing domain be served by Pages without touching the origin at all.
+ * Scoutpost is a separate Worker with static assets. A Worker route lets one
+ * path on the existing domain be served by that Worker without touching the
+ * origin at all.
  *
- * It strips the /scoutpost prefix before forwarding, so the Pages project sees
+ * It strips the /scoutpost prefix before forwarding, so the site Worker sees
  * clean paths (/events) while the app renders links with BASE_PATH=/scoutpost.
- * That keeps Pages Functions routing normal and makes the eventual move to a
- * dedicated domain a config change: delete this Worker, set BASE_PATH="/".
+ * That keeps its routing normal and makes the eventual move to a dedicated
+ * domain a config change: delete this Worker, set BASE_PATH="/".
+ *
+ * `PAGES_ORIGIN` is a misnomer left from when the site really was a Pages
+ * project. It is the site Worker's URL. Renaming it means changing this file
+ * and route-worker/wrangler.toml in the same deploy — deploy only one and the
+ * whole site 500s — so it stays as it is until there is a reason to touch it.
  *
  * Deploy:  cd route-worker && npx wrangler deploy
  * Route:   softsauce.co/scoutpost*   (configured in wrangler.toml)

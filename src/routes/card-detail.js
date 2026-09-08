@@ -30,9 +30,6 @@ import { decksPlayingCard, getCard } from '../lib/queries.js';
 import { cardImageSrc } from '../lib/images.js';
 import { COLOR_LABELS, domainIconSrc } from '../lib/vocab.js';
 
-
-
-
 /**
  * Render card text safely.
  *
@@ -58,8 +55,12 @@ export async function onRequestGet({ env, params }) {
   // subtitle is simply the part of the name after the comma.
   const subtitle = card.name.includes(',') ? card.name.split(',').slice(1).join(',').trim() : '';
 
-  const domainIcon = domainIconSrc(env, card.faction)
-    ? `<img class="stat-domain" src="${esc(url(env, `/domain-${card.faction}.png`))}"
+  // The src comes from domainIconSrc, not from a second copy of its filename
+  // rule — vocab.js owns which colours have an icon and what each one is called,
+  // and building the path here again is how the two drift apart.
+  const domainSrc = domainIconSrc(env, card.faction);
+  const domainIcon = domainSrc
+    ? `<img class="stat-domain" src="${esc(domainSrc)}"
            width="20" height="20" alt="${esc(COLOR_LABELS[card.faction] ?? card.faction)}"/>`
     : '';
 

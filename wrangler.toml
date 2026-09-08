@@ -1,8 +1,13 @@
 #:schema node_modules/wrangler/config-schema.json
 # Scoutpost — the site itself (Worker with static assets).
 #
-# Deployed by Cloudflare's git integration, which runs `npx wrangler deploy`
-# from the repo root on every push to main.
+# DEPLOYED BY HAND: `npx wrangler deploy` from the repo root. There is no CI and
+# the Cloudflare git integration is not connected, so pushing to main changes
+# nothing on the live site. This file used to claim the opposite; both the
+# README and the handoff had to be corrected for the same reason, and the
+# mistake has cost a debugging session more than once. Verify a deploy against
+# the live URL — wrangler's "No updated asset files to upload" is not evidence
+# either way. See §10 of docs/HANDOFF.md.
 #
 # Two other Workers live in this repo and are deployed separately, each with
 # its own config, because they do different jobs:

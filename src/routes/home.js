@@ -65,9 +65,10 @@ ${adSlot('leaderboard')}
     gap in the feed never silently drops a card from a total.
   </p>
   <p>
-    Costs are recalculated on every page view, not stored. Where a card has no
-    price yet, the deck shows how many of its cards are priced so you can judge
-    the number for yourself.
+    Costs are recalculated once a day, in the same job that pulls the prices and
+    immediately after it — so a deck total is always exactly as current as the
+    prices behind it. Where a card has no price yet, the deck shows how many of
+    its cards are priced so you can judge the number for yourself.
   </p>
 </section>`;
 

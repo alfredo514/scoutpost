@@ -14,7 +14,6 @@ import {
 import { getEvent, getEventDecks, latestPriceDate } from '../lib/queries.js';
 import { legendMark } from '../lib/images.js';
 
-
 export async function onRequestGet({ env, params }) {
   const slug = params.slug;
   const event = await getEvent(env.DB, slug);

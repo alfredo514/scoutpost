@@ -107,7 +107,7 @@ function breadcrumbNav(env, crumbs) {
 
 /**
  * Full page shell.
- * @param {object} env  Pages env (BASE_PATH, SITE_ORIGIN)
+ * @param {object} env  Worker env (BASE_PATH, SITE_ORIGIN)
  * @param {object} opts { title, description, path, crumbs, body, jsonLd }
  */
 export function layout(env, opts) {
@@ -272,24 +272,6 @@ export function notFound(env, what = 'Page') {
 }
 
 /**
- * The set-era filter bar, shared by /events and /decks.
- *
- * One implementation rather than two copies, because the requirement is that
- * the two bars look and behave identically — and two copies of markup drift the
- * moment either page is touched.
- *
- * Filters are links, like every other filter on this site, so each view is a
- * real shareable URL and none of it needs JavaScript.
- *
- * @param {object} opts
- *   path      base path, e.g. '/decks'
- *   eras      [{ id, name }] newest first, from setEras()
- *   counts    { [eraId]: n } for the badges
- *   selected  active era id, or '' for everything
- *   allLabel  wording of the first pill ('All events' / 'All decks')
- *   total     count for the first pill
- */
-/**
  * One filter chip.
  *
  * Every filter on this site is a link, so a chip is an anchor and nothing more.
@@ -329,6 +311,24 @@ export function ordinal(n) {
   return `${n}${ordinalSuffix(n)}`;
 }
 
+/**
+ * The set-era filter bar, shared by /events and /decks.
+ *
+ * One implementation rather than two copies, because the requirement is that
+ * the two bars look and behave identically — and two copies of markup drift the
+ * moment either page is touched.
+ *
+ * Filters are links, like every other filter on this site, so each view is a
+ * real shareable URL and none of it needs JavaScript.
+ *
+ * @param {object} opts
+ *   path      base path, e.g. '/decks'
+ *   eras      [{ id, name }] newest first, from setEras()
+ *   counts    { [eraId]: n } for the badges
+ *   selected  active era id, or '' for everything
+ *   allLabel  wording of the first pill ('All events' / 'All decks')
+ *   total     count for the first pill
+ */
 export function eraFilterBar(env, { path, eras, counts, selected, allLabel, total }) {
   const href = (id) => url(env, `${path}${id ? `?set=${id}` : '?set=all'}`);
 

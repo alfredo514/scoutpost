@@ -13,7 +13,7 @@ compatibility_date = "2026-08-01"
 [triggers]
 crons = ["15 21 * * *", "15 2 * * *"]
 
-# Same database the Pages project binds to.
+# Same database the site Worker binds to.
 # The database_id is an identifier, not a secret — it grants nothing without an
 # authenticated token for this account, and Cloudflare's own workflow commits it.
 [[d1_databases]]

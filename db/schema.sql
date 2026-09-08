@@ -3,14 +3,17 @@
 --
 -- Design notes:
 --  * price_snapshots is APPEND-ONLY, one row per card per day. Raw daily values
---    only — never averages. Weekly/monthly views are computed at read time so
---    that a different window can always be derived later.
+--    only — never averages. Weekly/monthly views are computed from it later, so
+--    a different window can always be derived.
 --  * events carries location columns from day one. Every early row will be a
 --    national event, but having the columns now makes a regional layer a data
 --    problem instead of a migration.
---  * Deck cost is NEVER stored as the source of truth. It is computed from
---    deck_cards joined against the latest price_snapshots at read time.
---    deck_cost_snapshots exists only as a historical record for charting.
+--  * Deck cost is never the SOURCE OF TRUTH — deck_cards and price_snapshots
+--    are, and everything else is rebuildable from them. It IS stored, on the
+--    deck row, written nightly by the price job immediately after the prices it
+--    depends on (§26). The header here used to say the opposite; the rule that
+--    reversed is where it is computed, not what is authoritative.
+--    deck_cost_snapshots is a historical record for charting.
 
 PRAGMA foreign_keys = ON;
 
@@ -100,7 +103,7 @@ CREATE TABLE IF NOT EXISTS decks (
   legend      TEXT,                        -- the deck's legend / champion identity
   notes       TEXT,
   -- Precomputed nightly, immediately after the card prices they depend on.
-  -- This reverses $8's "never stored" rule; $26 explains why it is still safe.
+  -- This reverses §8's "never stored" rule; §26 explains why it is still safe.
   total_cost     REAL,
   main_cost      REAL,
   side_cost      REAL,
@@ -114,9 +117,6 @@ CREATE TABLE IF NOT EXISTS decks (
 
 CREATE INDEX IF NOT EXISTS idx_decks_event ON decks(event_id, placement);
 
--- section is part of the key on purpose: a card can legitimately appear in both
--- the maindeck and the sideboard (e.g. 2x main + 1x side). Keying on
--- (deck_id, card_id) alone silently merges those two rows and loses a card.
 -- One row per card: its most recent price inside PRICE_WINDOW_DAYS.
 --
 -- A materialised view of price_snapshots, rebuilt nightly by the price job.
@@ -135,6 +135,9 @@ CREATE TABLE IF NOT EXISTS card_latest_price (
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- section is part of the key on purpose: a card can legitimately appear in both
+-- the maindeck and the sideboard (e.g. 2x main + 1x side). Keying on
+-- (deck_id, card_id) alone silently merges those two rows and loses a card.
 CREATE TABLE IF NOT EXISTS deck_cards (
   deck_id   TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   card_id   TEXT NOT NULL REFERENCES cards(id),
@@ -150,7 +153,6 @@ CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id, section);
 -- before this index, 4 after.
 CREATE INDEX IF NOT EXISTS idx_deck_cards_card ON deck_cards(card_id);
 
--- Historical record only. The displayed cost is always recomputed live.
 /* Printed card text, from TCGplayer.
  *
  * Riftscribe publishes NO rules or flavor text — its card record carries only
@@ -176,6 +178,9 @@ CREATE TABLE IF NOT EXISTS card_text (
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Historical record, for the price charts in §9. Written nightly by copying the
+-- columns on `decks` that the same job has just recomputed, so the history can
+-- never record a number the site did not show.
 CREATE TABLE IF NOT EXISTS deck_cost_snapshots (
   deck_id    TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   date       TEXT NOT NULL,
