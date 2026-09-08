@@ -1,7 +1,50 @@
 # Scoutpost — session handoff
 
-Written 2026-08-27. Read this first in a new session; it records the things
-that are expensive to rediscover.
+Started 2026-08-27, current as of **2026-09-08**. Read this first in a new
+session; it records the things that are expensive to rediscover.
+
+---
+
+## 0. Before you touch anything
+
+**Run `npm run seed:local` then `npm run dev`. Never `dev:remote` by habit.**
+Local development used to read the production database and that took the site
+down twice in two days — §27. This is the single easiest way to break things.
+
+**Check the D1 budget before any diagnosis.** `wrangler d1 info scoutpost`.
+Compare `rows_read_24h` against `read_queries_24h`: that ratio is the whole
+diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27.
+
+### Where it stands
+
+| | |
+|---|---|
+| Live | https://softsauce.co/scoutpost |
+| Data | 1,419 cards · 8 events · 64 decks · prices daily at 21:15 UTC |
+| Deploy | **manual** — `npx wrangler deploy`. Pushing changes nothing (§10) |
+| JavaScript | one deferred file, and nothing may *require* it (§22, §23) |
+| Cost | ~50–200 rows read per query after §26; it was ~40,000 (§25) |
+
+### The five things most likely to bite you
+
+1. **Prices are columns on `cards`, costs are columns on `decks`** — both
+   precomputed nightly. Do not reintroduce a price join. §26.
+2. **Promos reuse their original set's collector number**, so they are matched
+   by product id, never by number. Their sets carry a NULL release date on
+   purpose. §24.
+3. **A Signature's collector number is above the printed set size**, and so is
+   a secret rare's. Never "correct" it. §5.
+4. **Verify against the live URL**, never against wrangler's output — it lies
+   about asset uploads. §10.
+5. **Riot article dates are PUBLICATION dates**, not event dates. §5, §6.
+
+### What is still open
+
+- `/box-ev` is a placeholder in the nav (§9).
+- Price history charts are waiting on snapshot depth, not code (§9).
+- A collection page — collection tracking ships but is reachable from nowhere.
+- `robots.txt` on the NAS still needs the sitemap line; submit to Search
+  Console (§9).
 
 ---
 
@@ -89,7 +132,12 @@ stderr; suppressing them turns a real failure into a silently empty result.
 Output is pretty-printed JSON, so grep for `'"field":'` and `paste` the lines
 together, or parse it with node.
 
-**All platforms — `npm run dev` needs `--var BASE_PATH:/`.** In production the
+**`npm run dev` is LOCAL. It does not touch production.** That is deliberate
+and it is the fix for two outages — see §27. `npm run seed:local` fills the
+local database from public APIs; `npm run dev:remote` exists for the rare case
+you truly need production data and costs quota on every page load.
+
+**All platforms — the dev server needs `--var BASE_PATH:/`.** In production the
 site is served at `softsauce.co/scoutpost` and `route-worker` strips that prefix
 before forwarding, so `BASE_PATH` is `/scoutpost` and every link is built with
 it. Nothing strips the prefix locally, so `wrangler dev` on its own serves a
@@ -241,9 +289,10 @@ event file's `_note`.
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 — the only event so far where that happened |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn beat a runner-up Kennen costing ~3× as much |
 
-1,180 cards, ~1,158 daily prices, **8 events, 64 decks**, 100% price coverage on
-all decks. 22 cards are unpriced — promo printings with no TCGplayer
-counterpart, see §9.
+**1,419 cards** (1,180 catalogue + 239 promos, §24), ~1,340 daily prices,
+**8 events, 64 decks**, 100% price coverage on all decks. ~75 cards are
+unpriced: promos TCGplayer lists without a market price, plus the original 22
+special-numbering printings.
 
 **Don't write dollar figures into this doc.** Prices move every day — the whole
 point of the site — so a number recorded here is wrong by tomorrow and reads
@@ -279,7 +328,11 @@ Riot **"Legal Jibber Jabber"** policy:
 
 v1 scope: no user accounts, no public submissions, no leaderboards.
 
-**Build cost is computed at read time, never stored.** Most recent price *per
+**Build cost is precomputed nightly, not at read time.** This REVERSES the
+original rule and §26 explains why. The rule existed so a cost could never be
+stale; that is preserved by *when* the recompute runs — in the price job,
+immediately after the prices it depends on. `deck_cards` remains the source of
+truth. The original reasoning, still worth understanding: Most recent price *per
 card*, so a card missing a day falls back to its own last price rather than
 vanishing — bounded to a 30-day window, see §10. `deck_cost_snapshots` is
 history for future charting only; no page reads a cost from it.
@@ -1690,3 +1743,114 @@ whole diagnosis. Then measure a single query with
 `wrangler d1 execute --command` and read `rows_read` from the JSON — that is
 how every number in this section was obtained. Beware that those diagnostic
 queries are themselves expensive; each one above cost ~40k.
+
+---
+
+## 26. Prices live on the card row, costs live on the deck row
+
+**2026-09-08.** §25 materialised "latest price per card" and cut reads 10x. It
+was not enough: the cap was hit again, and the measurement said why —
+**7,622,036 rows from 1,412 queries, about 5,400 rows EACH**, at roughly a
+hundred page views a day. Volume was never the problem.
+
+`card_latest_price` fixed the history scan but not the *shape*. Every query
+still walked 1,419 cards, joined 1,349 prices, and sorted the result.
+
+### What changed
+
+- **`cards.market_price`, `cards.low_price`, `cards.price_date`**, written
+  nightly by the price job. No price join anywhere.
+- **`idx_cards_price` on `market_price DESC`.** This is the one that matters:
+  "top 50 by price" was a full scan plus a sort and is now an index range read.
+- **`decks.total_cost` / `main_cost` / `side_cost` / the counts**, recomputed
+  nightly straight after the card prices they depend on.
+
+| Query | Before | After |
+|---|---|---|
+| `topCards` | 4,034 | **50** |
+| `listEvents` | 4,170 | **79** |
+| `listDecks` | 4,155 | **192** |
+| `getEventDecks` | ~4,100 | **9** |
+| `marketStats` | 2,767 | 1,419 |
+
+### The three-step history is the lesson
+
+Each step looked like the answer at the time:
+
+1. A window function over `price_snapshots`, per query — ~40,000 rows each,
+   growing nightly.
+2. A materialised table, joined per query — ~4,000 rows each. 10x better and
+   still enough to exhaust the tier.
+3. Columns on the row, with an index for the dominant sort — ~50.
+
+The pattern: **a 10x win on a query that still scans is not a fix.** Ask what
+the query would read if it were perfect, and compare against that, not against
+what it used to read.
+
+### This reverses §8
+
+"Build cost is computed at read time, never stored" existed so a cost could
+never be stale. That is preserved by **when** the recompute runs: in the price
+job, immediately after the prices it depends on, so the number is exactly as
+current as the prices are — which is all read-time computation ever bought.
+`deck_cards` and `price_snapshots` remain the source of truth and both derived
+sets are rebuildable.
+
+### `era` moved from HAVING to WHERE
+
+It was in a HAVING only because those queries needed a GROUP BY to aggregate.
+With the costs stored there is nothing to group, and `EVENT_ERA` is a
+correlated subquery that works as a WHERE predicate.
+
+---
+
+## 27. Local development must never read production
+
+**This is the most important operational rule in this document.**
+
+`npm run dev` used to be `wrangler dev --remote`, which points the local server
+at the **production** database. Every page loaded while developing spent real
+quota.
+
+That caused two outages in two days, and neither was traffic:
+
+- **2026-09-01** — an audit of ~15 diagnostic queries plus repeated page loads.
+- **2026-09-08** — verifying the fix for the first one. `wrangler tail` showed
+  **zero requests** during the outage. The reads were entirely mine.
+
+The second one is the instructive one: the fix was correct and deployed, and
+measuring whether it worked is what blew the budget.
+
+### The setup
+
+```
+npm run seed:local     fills the local database, then
+npm run dev            serves against it
+```
+
+`scripts/seed-local.mjs` fetches from the same public sources the ingest
+Worker uses — Riftscribe for the catalogue, TCGCSV for promos and prices — plus
+the event JSON in `data/events`. **It never reads production D1.** That is why
+it is a fetch script and not an export.
+
+Two things it gets right that a naive dump would not: promo sets keep a NULL
+`release_date` so the era machinery stays correct (§24), and deck costs are
+recomputed with the same SQL the nightly job uses so local matches production
+instead of showing zeroes.
+
+Its prices are one day's snapshot, so the movers board correctly says "not
+enough history yet" locally. Add a second day by hand if you are working on it.
+
+`npm run dev:remote` still exists. It should be rare, and it costs quota on
+every page.
+
+### Rules for anyone diagnosing D1 cost
+
+1. **Check the remaining budget first.** `wrangler d1 info scoutpost` — compare
+   `rows_read_24h` against `read_queries_24h`; that ratio *is* the diagnosis.
+2. **Diagnostic queries are expensive.** Several in §25 and §26 cost 27k–45k
+   each. Fifteen of them is a real fraction of the daily allowance.
+3. **`rows_read_24h` is a ROLLING 24-hour figure**, not the quota counter. It
+   stays high for a day after a spike and cannot confirm a change made minutes
+   ago. Do not read it as "the fix did not work".
+4. **Measure against local**, now that local exists.
