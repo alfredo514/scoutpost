@@ -101,10 +101,13 @@ async function runPrices(env, trigger) {
 
     // Strictly after the card prices land: this prices decks against them.
     await rebuildDeckCosts(env.DB);
+    // And strictly after THAT: the history copies the columns rebuildDeckCosts
+    // just wrote, so the chart can never disagree with the page.
+    await snapshotDeckCosts(env.DB, collected.date);
+
     await writeProductLinks(env.DB, collected.productLinks);
     // Card text rides along with the same product walk — see writeCardText.
     const textRows = await writeCardText(env.DB, collected.cardText ?? []);
-    await snapshotDeckCosts(env.DB, collected.date);
 
     await recordRun(env.DB, {
       startedAt,

@@ -32,6 +32,7 @@ import {
   warn,
 } from './util.js';
 import { PROMO_GROUPS } from './promos.js';
+import { DECK_COST_SQL } from './deck-cost-sql.js';
 
 const BASE = 'https://tcgcsv.com/tcgplayer';
 const CATEGORY_ID = 89; // Riftbound: League of Legends Trading Card Game
@@ -398,32 +399,9 @@ export async function rebuildLatestPrices(db) {
  * against yesterday.
  */
 export async function rebuildDeckCosts(db) {
-  await db
-    .prepare(
-      `UPDATE decks SET
-         total_cost = (SELECT ROUND(SUM(COALESCE(c.market_price,0) * dc.quantity), 2)
-                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
-                        WHERE dc.deck_id = decks.id),
-         main_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section = 'main'
-                                             THEN COALESCE(c.market_price,0) * dc.quantity
-                                             ELSE 0 END), 2)
-                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
-                        WHERE dc.deck_id = decks.id),
-         side_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section = 'sideboard'
-                                             THEN COALESCE(c.market_price,0) * dc.quantity
-                                             ELSE 0 END), 2)
-                         FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
-                        WHERE dc.deck_id = decks.id),
-         card_count = (SELECT SUM(dc.quantity) FROM deck_cards dc WHERE dc.deck_id = decks.id),
-         main_count = (SELECT SUM(CASE WHEN dc.section = 'main' THEN dc.quantity ELSE 0 END)
-                         FROM deck_cards dc WHERE dc.deck_id = decks.id),
-         side_count = (SELECT SUM(CASE WHEN dc.section = 'sideboard' THEN dc.quantity ELSE 0 END)
-                         FROM deck_cards dc WHERE dc.deck_id = decks.id),
-         distinct_cards = (SELECT COUNT(*) FROM deck_cards dc WHERE dc.deck_id = decks.id),
-         priced_cards   = (SELECT COUNT(*) FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
-                            WHERE dc.deck_id = decks.id AND c.market_price IS NOT NULL)`,
-    )
-    .run();
+  // The statement itself lives in deck-cost-sql.js because the local seed
+  // script runs the same one; see the note there.
+  await db.prepare(DECK_COST_SQL).run();
 
   const row = await db.prepare('SELECT COUNT(*) AS n FROM decks WHERE total_cost IS NOT NULL').first();
   const n = row?.n ?? 0;
@@ -479,40 +457,43 @@ export async function writeProductLinks(db, productLinks) {
 }
 
 /**
- * Recompute today's deck cost history.
- * This is a historical record for charting only — pages always recompute live.
+ * Record today's deck costs as history, for the price charts in §9.
+ *
+ * **Copied from `decks`, not recomputed.** This used to price each deck
+ * against `price_snapshots WHERE date = MAX(date)` — today's rows only — while
+ * the site displays a cost built from `cards.market_price`, which falls back to
+ * a card's own last known price inside PRICE_WINDOW_DAYS. So a card missing
+ * from today's feed counted as $0 here and kept its price on the page, and the
+ * history quietly recorded a number the site never showed. Charting that later
+ * would have produced a phantom dip on a day when nothing moved — the §5
+ * failure mode exactly: a plausible wrong number rather than an error.
+ *
+ * Reading the columns `rebuildDeckCosts` has just written makes the two agree
+ * by construction rather than by two expressions being kept in step, and it is
+ * one statement where this was one per deck.
+ *
+ * Must therefore run AFTER rebuildDeckCosts.
  */
 export async function snapshotDeckCosts(db, date) {
-  const { results: decks } = await db.prepare('SELECT id FROM decks').all();
-  if (!decks || decks.length === 0) return 0;
+  await db
+    .prepare(
+      `INSERT INTO deck_cost_snapshots (deck_id, date, total_cost, priced_cards, total_cards)
+       SELECT id, ?, total_cost, priced_cards, distinct_cards
+         FROM decks
+        WHERE total_cost IS NOT NULL
+       ON CONFLICT(deck_id, date) DO UPDATE SET
+         total_cost   = excluded.total_cost,
+         priced_cards = excluded.priced_cards,
+         total_cards  = excluded.total_cards`,
+    )
+    .bind(date)
+    .run();
 
-  const stmts = decks.map((d) =>
-    db
-      .prepare(
-        `INSERT INTO deck_cost_snapshots (deck_id, date, total_cost, priced_cards, total_cards)
-         SELECT
-           dc.deck_id,
-           ?,
-           ROUND(SUM(COALESCE(p.market_price, 0) * dc.quantity), 2),
-           SUM(CASE WHEN p.market_price IS NOT NULL THEN 1 ELSE 0 END),
-           COUNT(*)
-         FROM deck_cards dc
-         LEFT JOIN (
-           SELECT card_id, market_price
-             FROM price_snapshots
-            WHERE date = (SELECT MAX(date) FROM price_snapshots)
-         ) p ON p.card_id = dc.card_id
-         WHERE dc.deck_id = ?
-         GROUP BY dc.deck_id
-         ON CONFLICT(deck_id, date) DO UPDATE SET
-           total_cost   = excluded.total_cost,
-           priced_cards = excluded.priced_cards,
-           total_cards  = excluded.total_cards`,
-      )
-      .bind(date, d.id),
-  );
-
-  const written = await runBatched(db, stmts);
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM deck_cost_snapshots WHERE date = ?')
+    .bind(date)
+    .first();
+  const written = row?.n ?? 0;
   log(`deck costs: snapshotted ${written} deck(s) for ${date}`);
   return written;
 }

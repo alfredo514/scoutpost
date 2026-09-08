@@ -36,6 +36,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
+// The one definition of the nightly deck-cost recompute. Imported rather than
+// copied so the local database can never price a deck differently from the
+// live site — see the note in that file.
+import { DECK_COST_SQL } from '../ingest/src/deck-cost-sql.js';
+
 const UA = 'Scoutpost/1.0 (+https://softsauce.co/scoutpost)';
 const TCG = 'https://tcgcsv.com/tcgplayer';
 const CATEGORY = 89;
@@ -65,17 +70,6 @@ function qs(v) {
 function num(v) {
   return v === null || v === undefined || Number.isNaN(Number(v)) ? 'NULL' : String(Number(v));
 }
-
-/** The nightly deck-cost recompute, verbatim from ingest/src/prices.js. */
-const DECK_COST_SQL = `UPDATE decks SET
-  total_cost = (SELECT ROUND(SUM(COALESCE(c.market_price,0)*dc.quantity),2) FROM deck_cards dc JOIN cards c ON c.id=dc.card_id WHERE dc.deck_id=decks.id),
-  main_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section='main' THEN COALESCE(c.market_price,0)*dc.quantity ELSE 0 END),2) FROM deck_cards dc JOIN cards c ON c.id=dc.card_id WHERE dc.deck_id=decks.id),
-  side_cost  = (SELECT ROUND(SUM(CASE WHEN dc.section='sideboard' THEN COALESCE(c.market_price,0)*dc.quantity ELSE 0 END),2) FROM deck_cards dc JOIN cards c ON c.id=dc.card_id WHERE dc.deck_id=decks.id),
-  card_count = (SELECT SUM(dc.quantity) FROM deck_cards dc WHERE dc.deck_id=decks.id),
-  main_count = (SELECT SUM(CASE WHEN dc.section='main' THEN dc.quantity ELSE 0 END) FROM deck_cards dc WHERE dc.deck_id=decks.id),
-  side_count = (SELECT SUM(CASE WHEN dc.section='sideboard' THEN dc.quantity ELSE 0 END) FROM deck_cards dc WHERE dc.deck_id=decks.id),
-  distinct_cards = (SELECT COUNT(*) FROM deck_cards dc WHERE dc.deck_id=decks.id),
-  priced_cards   = (SELECT COUNT(*) FROM deck_cards dc JOIN cards c ON c.id=dc.card_id WHERE dc.deck_id=decks.id AND c.market_price IS NOT NULL);`;
 
 async function json(url, label) {
   const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
@@ -279,7 +273,8 @@ async function main() {
   // confusing "You must provide either --command or --file".
   console.log('\nrecomputing deck costs…');
   const costSql = path.join('build', 'deck-costs.sql');
-  fs.writeFileSync(costSql, DECK_COST_SQL);
+  fs.writeFileSync(costSql, `${DECK_COST_SQL};
+`);
   wrangler(['d1', 'execute', 'scoutpost', '--local', `--file=${costSql}`, '-y']);
 
   console.log('\nlocal database ready — run `npm run dev`');
