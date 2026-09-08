@@ -1,13 +1,21 @@
 /**
  * D1 queries.
  *
- * Deck build cost is ALWAYS computed here, at read time, by joining deck_cards
- * against the most recent price_snapshot per card. It is never read back from
- * deck_cost_snapshots — that table is history for charting only.
+ * Prices live ON the card row and deck costs live ON the deck row. Nothing here
+ * computes a cost, and nothing here joins price_snapshots except the movers
+ * board, which needs two specific dates rather than "the latest".
  *
- * "Most recent per card" rather than "most recent overall": if a card missed a
- * day (TCGplayer had no market price, or a set import was skipped), it should
- * fall back to its own last known price instead of dropping out of the total.
+ * This file's header used to say the opposite — that build cost is ALWAYS
+ * computed at read time — and it stayed that way for a while after §26 reversed
+ * it, which is the most misleading place in the repo for a stale claim to sit.
+ * The reasoning it recorded is still worth keeping, and it still holds: the
+ * price a deck is costed against is the most recent price PER CARD, not the
+ * most recent overall, so a card that missed a day falls back to its own last
+ * known price instead of dropping out of the total. That rule now lives in
+ * rebuildLatestPrices() in ingest/src/prices.js, which runs nightly.
+ *
+ * `deck_cost_snapshots` is history for charting and no page reads a cost from
+ * it.
  */
 
 /**
@@ -62,9 +70,6 @@ export async function latestPriceDate(db) {
  *
  * `era` filters to the set that was legal when the event was played. It is
  * derived from dates, not stored, so a new set needs no migration.
- */
-/**
- * Events, newest first, each with the cost spread across its top 8.
  *
  * Reads `decks.total_cost`, which the price job writes nightly — it does not
  * aggregate deck_cards. That aggregation cost ~4,170 rows read per view; this
@@ -142,7 +147,6 @@ export async function getDeck(db, deckId) {
     .first();
 }
 
-/** Every card in a deck with its current price and line total. */
 /**
  * The rest of the top 8 this deck was part of, plus how many other decks share
  * its Legend.
@@ -178,10 +182,11 @@ export async function deckSiblings(db, { eventId, deckId, legend }) {
   return { siblings: siblings.results ?? [], sameLegend: sameLegend?.n ?? 0 };
 }
 
+/** Every card in a deck with its current price and line total. */
 export async function getDeckCards(db, deckId) {
   const { results } = await db
     .prepare(
-      `       SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
+      `SELECT c.id, c.name, c.set_id, c.collector_number, c.public_code,
               c.rarity, c.card_type, c.image_thumb_url, c.image_large_url,
               c.tcgcsv_product_id,
               dc.quantity, dc.section,
@@ -198,13 +203,10 @@ export async function getDeckCards(db, deckId) {
 }
 
 /**
- * Decks across all events — powers /decks.
+ * Decks across all events, newest event first — powers /decks.
  *
  * A deck's era is its parent event's era, so the same date-derived rule applies
  * and no deck carries a stored set tag.
- */
-/**
- * Decks, newest event first.
  *
  * `legend` matches the stored name exactly; `q` is a substring over the legend
  * and the player, so one box finds "Irelia" and "TheManland" alike. Both are
@@ -255,13 +257,27 @@ export async function listDecks(db, { limit = 100, era = '', legend = '', q = ''
 /**
  * Every Legend that has a deck, with one piece of art and a deck count.
  *
- * Drives the avatar row on /decks. The art is taken from whichever deck
- * happens to sort first for that Legend — every deck running a Legend runs the
- * same card, so any of them is the right picture, and picking one with
- * ROW_NUMBER avoids a second query per Legend.
+ * Drives the avatar row on /decks. The art is taken from whichever deck sorts
+ * first for that Legend — every deck running a Legend runs the same card, so
+ * any of them is the right picture.
  *
  * Counts respect the set filter, so the row never offers a Legend that would
  * return an empty table in the era being viewed.
+ *
+ * **Group first, then fetch the art.** This used to join `deck_cards` and
+ * `cards` for EVERY deck and rank the result — a full scan of `deck_cards`
+ * plus three index lookups per row, about 8,800 rows read on every /decks
+ * view. That made it several times more expensive than everything else on the
+ * page put together (`listDecks` reads 192, §26) and it grew with every deck
+ * imported, which is exactly the shape §25 and §26 were about.
+ *
+ * Now the window functions run over `decks` alone — 64 rows — and the art is a
+ * correlated subquery on the ~10 winning decks, the same LEGEND_ART pattern
+ * used above and served by `idx_deck_cards_deck`.
+ *
+ * One deliberate change of meaning: `n` counts DECKS, where before it counted
+ * matching deck_cards rows. Those differ only if a deck somehow held two
+ * Legend rows, and the label the count feeds — "N decks" — always meant decks.
  */
 export async function legendFacets(db, { era = '' } = {}) {
   const having = era ? 'WHERE era = ?' : '';
@@ -269,23 +285,26 @@ export async function legendFacets(db, { era = '' } = {}) {
   const { results } = await db
     .prepare(
       `WITH per_deck AS (
-         SELECT d.legend, cl.image_thumb_url AS thumb, d.id AS deck_id,
-                ${EVENT_ERA} AS era
+         SELECT d.legend, d.id AS deck_id, ${EVENT_ERA} AS era
            FROM decks d
            JOIN events e ON e.id = d.event_id
-           JOIN deck_cards dc ON dc.deck_id = d.id
-           JOIN cards cl ON cl.id = dc.card_id AND cl.card_type = 'Legend'
        ),
        scoped AS (SELECT * FROM per_deck ${having}),
        ranked AS (
-         SELECT legend, thumb,
+         SELECT legend, deck_id,
                 ROW_NUMBER() OVER (PARTITION BY legend ORDER BY deck_id) AS rn,
                 COUNT(*) OVER (PARTITION BY legend) AS n
            FROM scoped
        )
-       SELECT legend, thumb, n FROM ranked
-        WHERE rn = 1 AND legend IS NOT NULL AND legend <> ''
-        ORDER BY n DESC, legend ASC`,
+       SELECT r.legend,
+              (SELECT cl.image_thumb_url
+                 FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
+                WHERE dcl.deck_id = r.deck_id AND cl.card_type = 'Legend'
+                LIMIT 1) AS thumb,
+              r.n
+         FROM ranked r
+        WHERE r.rn = 1 AND r.legend IS NOT NULL AND r.legend <> ''
+        ORDER BY r.n DESC, r.legend ASC`,
     )
     .bind(...params)
     .all();
@@ -330,18 +349,6 @@ export async function allDeckIds(db) {
   return results ?? [];
 }
 
-/**
- * The card browser behind /cards.
- *
- * Filters are plain SQL over indexed columns, built from whatever the caller
- * passes, because the page drives them from query-string links rather than
- * JavaScript — a filtered view has to be a real URL that can be shared,
- * bookmarked and crawled.
- *
- * Ordering is price descending, which is this site's whole angle: the first
- * thing anyone wants from a card list is what the expensive ones are. Unpriced
- * cards sort last rather than reading as free.
- */
 /**
  * Printing groups, expressed as SQL over the `variant` column.
  *
@@ -449,12 +456,24 @@ const CARD_SORTS = {
   'rarity-asc': `${RARITY_RANK} ASC, c.name ASC`,
 };
 
+/**
+ * The card browser behind /cards.
+ *
+ * Filters are plain SQL over indexed columns, built from whatever the caller
+ * passes, because the page drives them from query-string links rather than
+ * JavaScript — a filtered view has to be a real URL that can be shared,
+ * bookmarked and crawled.
+ *
+ * Ordering is price descending, which is this site's whole angle: the first
+ * thing anyone wants from a card list is what the expensive ones are. Unpriced
+ * cards sort last rather than reading as free.
+ */
 export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ...filters } = {}) {
   const { clause, params } = cardFilterSql(filters);
   const order = CARD_SORTS[sort] ?? CARD_SORTS.price;
   const { results } = await db
     .prepare(
-      `       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+      `SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
               c.rarity, c.card_type, c.faction,
               c.image_thumb_url, c.image_large_url,
               s.name AS set_name,
@@ -473,18 +492,23 @@ export async function listCards(db, { sort = 'price', limit = 50, offset = 0, ..
 /**
  * How many cards match a filter — drives the pager and the result count.
  *
- * Joins prices even though it counts rows, because the `priced` filter tests
- * `c.market_price`. Counting against a different FROM clause than the listing
- * uses is how a pager ends up disagreeing with its own results.
+ * No join. Every condition `cardFilterParts` can produce reads a column on
+ * `cards` — including `priced`, which now tests `c.market_price` on the row
+ * itself (§26). The `LEFT JOIN sets` that used to be here was left over from
+ * when `listCards` and this shared a FROM clause; it changed no result and cost
+ * an index lookup per card, 1,419 of them on every /cards view.
+ *
+ * If a filter ever needs a column from `sets`, the join comes back here AND in
+ * `listCards` together — counting against a different FROM clause than the
+ * listing uses is how a pager ends up disagreeing with its own results.
  */
 export async function countCards(db, filters = {}) {
   const { clause, params } = cardFilterSql(filters);
   const row = await db
     .prepare(
-      `       SELECT COUNT(*) AS n
+      `SELECT COUNT(*) AS n
          FROM cards c
-         LEFT JOIN sets s ON s.id = c.set_id
-         ${clause}`,
+        ${clause}`,
     )
     .bind(...params)
     .first();
@@ -517,7 +541,6 @@ export async function cardFacets(db) {
   };
 }
 
-/** Counts per printing group, so the Signature chip can say how many there are. */
 /**
  * How many cards fall in each printing group.
  *
@@ -550,6 +573,21 @@ export async function printingFacets(db) {
  * Origins: Proving Grounds is a 24-card starter released alongside Origins and
  * is not a format of its own, which is what the card-count ordering handles
  * without naming it.
+ *
+ * **Two conditions, both load-bearing, because a TCGplayer group is not the
+ * same thing as a format.** The set list comes from TCGCSV's groups, which
+ * carry more than the sets people play:
+ *
+ * - `release_date <= today` — TCGCSV lists sets that have been ANNOUNCED but
+ *   not released. On 2026-09-08 those were Radiance (2026-10-23) and Legacy
+ *   (2027-01-29), both with zero cards. Without this, `eras[0]` was Legacy, and
+ *   since /events and /decks default to the newest era (DEFAULT_ERA) both pages
+ *   opened on an empty table five months before that set exists.
+ * - `cards > 0` — a group can be a sealed-product line rather than a set.
+ *   "Riftbound Bundles" is one, and it has no singles at all.
+ *
+ * The same reasoning applies to EVENT_ERA below; the two must agree, or the
+ * filter bar offers an era that the events themselves are never assigned to.
  */
 export async function setEras(db) {
   const { results } = await db
@@ -557,7 +595,9 @@ export async function setEras(db) {
       `SELECT s.id, s.name, s.release_date, COUNT(c.id) AS cards
          FROM sets s LEFT JOIN cards c ON c.set_id = s.id
         WHERE s.release_date IS NOT NULL
+          AND s.release_date <= date('now')
         GROUP BY s.id
+       HAVING cards > 0
         ORDER BY s.release_date DESC, cards DESC`,
     )
     .all();
@@ -570,10 +610,21 @@ export async function setEras(db) {
 /**
  * Which era an event falls in: the most recent set released on or before it.
  * Expressed as SQL so it can be both selected and filtered on.
+ *
+ * `EXISTS (... FROM cards ...)` excludes groups that carry no singles, and it
+ * has to be a WHERE condition rather than only a tiebreak. The card-count
+ * ordering below breaks ties between sets sharing a release DATE; it does
+ * nothing about a card-less group released a day LATER, which simply wins.
+ * That is not hypothetical — "Riftbound Bundles" is published as 2026-08-01,
+ * one day after Vendetta, so every event from August onwards was being filed
+ * under a sealed-product line instead of the format that was actually legal.
+ *
+ * Must stay in step with setEras() above, which applies the same two rules.
  */
 const EVENT_ERA = `
   (SELECT s.id FROM sets s
     WHERE s.release_date <= e.date
+      AND EXISTS (SELECT 1 FROM cards WHERE set_id = s.id)
     ORDER BY s.release_date DESC, (SELECT COUNT(*) FROM cards WHERE set_id = s.id) DESC
     LIMIT 1)`;
 
@@ -587,10 +638,9 @@ const EVENT_ERA = `
 export async function getCard(db, id) {
   return db
     .prepare(
-      `       SELECT c.*, s.name AS set_name, s.release_date,
+      `SELECT c.*, s.name AS set_name, s.release_date,
               t.energy_cost, t.power_cost, t.might, t.type_line,
-              t.tags, t.domain, t.rules_text, t.flavor_text,
-              c.market_price, c.low_price, c.price_date
+              t.tags, t.domain, t.rules_text, t.flavor_text
          FROM cards c
          LEFT JOIN sets s ON s.id = c.set_id
          LEFT JOIN card_text t ON t.card_id = c.id
@@ -634,7 +684,7 @@ export async function topCards(db, { limit = 25, ...filters } = {}) {
   const { clause, params } = cardFilterSql({ ...filters, priced: 'yes' });
   const { results } = await db
     .prepare(
-      `       SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
+      `SELECT c.id, c.name, c.public_code, c.set_id, c.collector_number,
               c.variant, c.rarity, c.card_type, c.faction,
               c.image_thumb_url, c.image_large_url,
               s.name AS set_name,
@@ -665,7 +715,7 @@ export async function marketStats(db, filters = {}) {
   const [agg, med] = await Promise.all([
     db
       .prepare(
-        `         SELECT COUNT(*) AS cards,
+        `SELECT COUNT(*) AS cards,
                 SUM(CASE WHEN c.market_price IS NOT NULL THEN 1 ELSE 0 END) AS priced,
                 SUM(c.market_price) AS total,
                 MAX(c.market_price) AS top,
@@ -712,11 +762,11 @@ export async function marketStats(db, filters = {}) {
 export async function metalCount(db, filters = {}) {
   const { where, params } = cardFilterParts({ ...filters, metal: undefined, priced: 'yes' });
   const clause = [...where, "c.name LIKE '%(Metal)%'"].join(' AND ');
+  // No join, for the same reason as countCards: nothing here reads `sets`.
   const row = await db
     .prepare(
-      `       SELECT COUNT(*) AS n
+      `SELECT COUNT(*) AS n
          FROM cards c
-         LEFT JOIN sets s ON s.id = c.set_id
         WHERE ${clause}`,
     )
     .bind(...params)
@@ -808,10 +858,11 @@ export async function moverWindow(db) {
  * only our reading of it did. Comparing fixed endpoints and dropping anything
  * missing from either means a data fix can never masquerade as a market event.
  *
- * The same reasoning is why this does NOT reuse LATEST_PRICES: that helper
- * deliberately falls back to a card's own last known price, which is right for
- * a deck total and wrong here, where an unchanged stale price would read as a
- * card that held its value.
+ * The same reasoning is why this does NOT read `cards.market_price` like every
+ * other query here: that column deliberately carries a card's own last known
+ * price within the 30-day window, which is right for a deck total and wrong
+ * here, where an unchanged stale price would read as a card that held its
+ * value. This is the one place price_snapshots is still read directly.
  */
 export async function topMovers(db, { from, to, direction = 'up', limit = 8, ...filters } = {}) {
   const { where, params } = cardFilterParts({ ...filters, priced: undefined });
