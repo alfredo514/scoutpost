@@ -41,6 +41,7 @@ import { execFileSync } from 'node:child_process';
 // live site — see the note in that file.
 import { DECK_COST_SQL } from '../ingest/src/deck-cost-sql.js';
 import { CATALOG_REBUILD_SQL, PRICE_REBUILD_SQL } from '../ingest/src/facets-sql.js';
+import { METAL_ART_SQL, resolveMetalArt } from '../ingest/src/metal-art.js';
 
 const UA = 'Scoutpost/1.0 (+https://softsauce.co/scoutpost)';
 const TCG = 'https://tcgcsv.com/tcgplayer';
@@ -285,11 +286,21 @@ async function main() {
    * Imported from the same modules the Workers use, never copied — a local
    * database that computes these differently from production is worse than no
    * local database at all (§27). */
+  // Metal prize cards borrow the ordinary printing's art; resolved here from
+  // the same in-memory card list, with the same resolver the catalog job uses.
+  const lit = (v) => `'${String(v).replace(/'/g, "''")}'`;
+  const metalArt = resolveMetalArt(cards).pairs.map((p) => {
+    let i = 0;
+    const binds = [p.sourceId, p.sourceId, p.sourceId, p.sourceId, p.metalId];
+    return METAL_ART_SQL.replace(/\?/g, () => lit(binds[i++]));
+  });
+
   const statements = [
     'UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id)',
     DECK_COST_SQL,
     ...CATALOG_REBUILD_SQL,
     ...PRICE_REBUILD_SQL,
+    ...metalArt,
   ];
 
   fs.writeFileSync(costSql, `${statements.join(';\n')};\n`);

@@ -1,0 +1,25 @@
+-- Let Metal prize cards borrow the art of the card they are a Metal version of.
+--
+--   wrangler d1 execute scoutpost --remote --file=db/migrations/005-metal-art.sql
+--
+-- Adds the column only. The art itself is filled by scripts/metal-art.mjs,
+-- because the match is a NAME resolution with three catalogue quirks in it
+-- (champion prefix, " - Starter" suffix, case) plus the set-size test that
+-- keeps secret rares out — none of which belongs in SQL. See
+-- ingest/src/metal-art.js; the catalog job runs the same resolver nightly.
+--
+-- WHY
+--
+-- TCGplayer publishes no photograph for 52 of the 68 Metal cards, so they
+-- rendered as blank frames. They are metal printings of an existing card and
+-- look like the ordinary art, so the ordinary art is the honest thing to show.
+--
+-- The image URLs are COPIED onto the Metal row rather than joined at read time,
+-- so this costs nothing per view (§28). Because the R2 key is derived from the
+-- URL's filename, the Metal card then serves the byte-identical mirrored object
+-- the base card already uses — no extra storage, nothing new to mirror.
+--
+-- art_from_card_id is not read to render anything. It records that the art is
+-- not this card's own, so that fact lives in the data instead of having to be
+-- re-derived, and so the card page can say so.
+ALTER TABLE cards ADD COLUMN art_from_card_id TEXT;

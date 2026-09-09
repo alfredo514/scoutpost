@@ -138,6 +138,16 @@ export async function onRequestGet({ env, params }) {
                alt="${esc(card.name)}" decoding="async"/>`
         : '<div class="tile-art--empty" aria-hidden="true"></div>'
     }
+    ${/* Metal prize cards have no photograph on TCGplayer, so they show the
+         ordinary printing's art rather than a blank frame — see
+         ingest/src/metal-art.js. Saying so is the difference between helping a
+         reader and implying we have a picture of the card we do not have. */ ''}
+    ${
+      card.art_from_card_id
+        ? `<p class="source-note">Art shown is the standard printing. TCGplayer
+           publishes no photograph of this Metal version.</p>`
+        : ''
+    }
   </div>
 
   <div class="card-detail-text">

@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS cards (
   -- name test was a guaranteed full scan on every /rankings query. See
   -- shared/card-sql.js for the definition. Measured: 1,419 rows -> 68.
   is_metal          INTEGER NOT NULL DEFAULT 0,
+  -- Set when this card SHOWS another card's art. Metal prize cards have no
+  -- photograph on TCGplayer (52 of 68), so they borrow the ordinary printing's
+  -- picture rather than rendering as a blank frame. Nothing reads this to draw
+  -- a page — the image URLs are copied onto the row so no join is needed — it
+  -- records that the art is not the card's own. See ingest/src/metal-art.js.
+  art_from_card_id  TEXT REFERENCES cards(id),
   tcgcsv_product_id INTEGER,               -- NULL until matched to a TCGplayer product
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -30,10 +30,14 @@ function problem(file, msg) {
   problems.push(`${file}: ${msg}`);
 }
 
-/** Compare names ignoring punctuation, case and spacing. */
-function normaliseName(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
+// The name-resolution rules live in shared/card-names.js — the ingest Worker's
+// Metal-art job needs the same ones, and they are the rules §5 is a list of.
+import {
+  isBasePrinting,
+  nameForms,
+  normaliseName,
+  suffixTrimmed,
+} from '../shared/card-names.js';
 
 /** SQL string literal. */
 function s(value) {
@@ -77,8 +81,8 @@ async function loadCatalogue() {
         byName.get(key).push(c);
 
         // 'Wuju Bladesman - Starter' should also be findable as 'Wuju Bladesman'
-        const trimmed = normaliseName(String(c.name).replace(/\s+-\s+.*$/, ''));
-        if (trimmed && trimmed !== key) {
+        const trimmed = suffixTrimmed(c.name);
+        if (trimmed) {
           if (!bySuffixTrimmed.has(trimmed)) bySuffixTrimmed.set(trimmed, []);
           bySuffixTrimmed.get(trimmed).push(c);
         }
@@ -121,10 +125,7 @@ function resolveCard(entry, catalogue, file) {
     // "Heart of the Tempest"). Each form is looked up both directly and against
     // suffix-trimmed names, since starter reprints carry one
     // ("Wuju Bladesman - Starter").
-    const forms = [normaliseName(entry.name)];
-    if (entry.name.includes(',')) {
-      forms.push(normaliseName(entry.name.split(',').slice(1).join(' ')));
-    }
+    const forms = nameForms(entry.name);
 
     let hits = [];
     for (const form of forms) {
@@ -144,13 +145,7 @@ function resolveCard(entry, catalogue, file) {
     //     set total is a secret-rare/alt art. These are not marginally pricier,
     //     they are 100-1000x pricier (Baron Nashor: $18.92 base vs $1,634.89
     //     for UNL-238/219), so picking one would wreck a deck's cost.
-    const base = hits.filter((c) => {
-      if (c.variant) return false;
-      if (/showcase|signature/i.test(c.rarity ?? '')) return false;
-      const m = /\/(\d+)$/.exec(c.public_code ?? '');
-      if (m && Number(c.collector_number) > Number(m[1])) return false;
-      return !String(c.public_code ?? '').includes('*');
-    });
+    const base = hits.filter(isBasePrinting);
 
     if (base.length === 1) {
       notes.push(

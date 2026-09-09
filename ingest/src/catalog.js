@@ -15,6 +15,7 @@
 
 import { IngestError, fetchJson, log, nonEmptyString, runBatched, warn } from './util.js';
 import { CATALOG_REBUILD_SQL } from './facets-sql.js';
+import { METAL_ART_SQL, metalArtBinds, resolveMetalArt } from './metal-art.js';
 
 const API = 'https://riftscribe.gg/api/cards';
 const PAGE_SIZE = 200;
@@ -215,9 +216,22 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
    * would show a filter bar with no chips at all. */
   await db.batch(CATALOG_REBUILD_SQL.map((sql) => db.prepare(sql)));
 
+  /* Metal prize cards borrow the art of the card they are a Metal version of.
+   * Runs last: the copy reads the source card's image columns out of the rows
+   * written above, and it depends on is_metal, which the rebuild just set. */
+  const { pairs, unmatched, ambiguous } = resolveMetalArt(cards);
+  if (unmatched.length) warn(`metal art: ${unmatched.length} unmatched — ${unmatched[0]}`);
+  if (ambiguous.length) warn(`metal art: ${ambiguous.length} ambiguous, left blank — ${ambiguous[0]}`);
+  if (pairs.length) {
+    await runBatched(
+      db,
+      pairs.map((p) => db.prepare(METAL_ART_SQL).bind(...metalArtBinds(p))),
+    );
+  }
+
   log(
     `catalog: wrote ${setIds.length} sets, ${written} cards, ` +
-      'refreshed card_count, facets and is_metal',
+      `refreshed card_count, facets and is_metal, ${pairs.length} metal art links`,
   );
   return written;
 }

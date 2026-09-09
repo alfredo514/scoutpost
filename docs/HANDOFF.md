@@ -1951,6 +1951,7 @@ Six things now answer "no" and are written by the nightly jobs:
 | `cards.is_metal` | catalog job | 1,419 per view |
 | `card_facets` (table) | catalog job | 12,788 per view |
 | `sets.priced_count` / `total_value` / `top_card_id` | price job | 7,127 per view |
+| `cards.art_from_card_id` + copied image URLs | catalog job | (not cost — see below) |
 
 ### The one that caused the outages: a COUNT inside a correlated subquery
 
@@ -2025,6 +2026,35 @@ slices, and synthetic counts of 1–7, 20, 21 for the even/odd rule. **254
 combinations, 0 mismatches.** It reads the local sqlite file directly, so it
 costs nothing and can afford to be exhaustive. Keep it; it is what makes that
 query safe to touch again.
+
+### Metal cards borrow the ordinary printing's art
+
+Not a read-cost fix, but it follows the same rule and rides the same jobs.
+TCGplayer publishes no photograph for **52 of the 68** Metal prize cards, so
+they rendered as blank frames. They are metal printings of an existing card and
+look like the ordinary art, so `ingest/src/metal-art.js` copies the base
+printing's image URLs onto the Metal row nightly.
+
+Copied, not joined, so it costs nothing per view. And because the R2 key is
+derived from the URL's filename, the Metal card then serves the byte-identical
+mirrored object the base card already uses — **no extra storage and nothing new
+to mirror**; `image_mirrored` is copied for that reason.
+
+The match is a NAME resolution, which is the dangerous part: a name can match a
+secret rare whose collector number is above the set size, and picking one would
+put the wrong picture on the page silently (§5). So the rules come from
+`shared/card-names.js` — the deck importer's own resolver, extracted rather
+than copied — and `scripts/metal-art.mjs` prints the whole mapping for review
+and re-checks every pick. Verified: 68 resolved, 0 unmatched, 0 ambiguous,
+0 picks that were secret rares, Signatures or variants.
+
+`art_from_card_id` records the borrow so the card page can say "art shown is
+the standard printing" rather than implying a photograph exists.
+
+**123 non-Metal cards still have no art** — OPP and JDG promos TCGplayer never
+photographed. Same visible problem, different match: a promo carries its
+ORIGINAL set's collector number and set size (§24), so `OPP-263/298` is the
+promo of `OGN-263/298` and the code, not the name, is the join. Not done.
 
 ### Where it ended up
 
