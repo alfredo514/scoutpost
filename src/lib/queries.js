@@ -334,7 +334,11 @@ export async function deckEraCounts(db) {
 /** Small headline numbers for the homepage. */
 export async function siteStats(db) {
   const [cards, events, decks, priceDate] = await Promise.all([
-    db.prepare('SELECT COUNT(*) AS n FROM cards').first(),
+    // SUM over `sets`, not COUNT over `cards`: eight rows instead of 1,419 for
+    // the same number, because sets.card_count is already maintained nightly
+    // for EVENT_ERA. Measured 1,419 -> 8. The events and decks counts stay as
+    // they are; those tables are small and there is nothing to read them from.
+    db.prepare('SELECT COALESCE(SUM(card_count), 0) AS n FROM sets').first(),
     db.prepare('SELECT COUNT(*) AS n FROM events').first(),
     db.prepare('SELECT COUNT(*) AS n FROM decks').first(),
     latestPriceDate(db),
@@ -446,7 +450,25 @@ function cardFilterSql(filters) {
  * A fixed map rather than interpolated input — the value arrives from a query
  * string, and ORDER BY cannot be parameterised.
  */
-const UNPRICED_LAST = 'CASE WHEN c.market_price IS NULL THEN 1 ELSE 0 END';
+/**
+ * Unpriced cards sort last — a card with no price is unknown, not free.
+ *
+ * **Written as NULLS LAST, never as a CASE.** It used to be
+ * `CASE WHEN c.market_price IS NULL THEN 1 ELSE 0 END` as the first sort key,
+ * and because that is an EXPRESSION rather than a column, it made
+ * `idx_cards_price` unusable: every sorted listing became a full scan plus a
+ * temp B-tree. Measured on the default /cards view: **2,838 rows read, against
+ * 50 for the same query ordered on the bare column.**
+ *
+ * On DESC it is not even needed — SQLite orders NULL below every value, so
+ * `market_price DESC` already puts unpriced cards last on its own. It is only
+ * ASC that needs saying, and NULLS LAST says it without hiding the column from
+ * the planner.
+ *
+ * The rule this is an instance of: an ORDER BY that wraps an indexed column in
+ * an expression throws the index away. Same for a WHERE.
+ */
+const UNPRICED_LAST_ASC = 'c.market_price ASC NULLS LAST';
 
 /* Rarity has a meaningful order that alphabetical destroys. */
 const RARITY_RANK = `CASE c.rarity
@@ -454,13 +476,15 @@ const RARITY_RANK = `CASE c.rarity
   WHEN 'epic' THEN 4 WHEN 'showcase' THEN 5 ELSE 6 END`;
 
 const CARD_SORTS = {
-  price: `${UNPRICED_LAST}, c.market_price DESC, c.name ASC`,
-  'price-asc': `${UNPRICED_LAST}, c.market_price ASC, c.name ASC`,
+  // No CASE and no NULLS clause: DESC already puts unpriced last, and the bare
+  // column lets idx_cards_price serve the whole thing.
+  price: 'c.market_price DESC, c.name ASC',
+  'price-asc': `${UNPRICED_LAST_ASC}, c.name ASC`,
   name: 'c.name ASC, s.release_date DESC',
   'name-desc': 'c.name DESC, s.release_date DESC',
   set: 's.release_date DESC, c.collector_number ASC, c.variant ASC',
   'set-asc': 's.release_date ASC, c.collector_number ASC, c.variant ASC',
-  rarity: `${RARITY_RANK} DESC, ${UNPRICED_LAST}, c.market_price DESC`,
+  rarity: `${RARITY_RANK} DESC, c.market_price DESC`,
   'rarity-asc': `${RARITY_RANK} ASC, c.name ASC`,
 };
 
