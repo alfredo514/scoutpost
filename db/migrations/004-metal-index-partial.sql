@@ -1,0 +1,21 @@
+-- Make idx_cards_metal PARTIAL. Fixes a regression shipped with 003.
+--
+--   wrangler d1 execute scoutpost --remote --file=db/migrations/004-metal-index-partial.sql
+--
+-- 003 added `CREATE INDEX idx_cards_metal ON cards(is_metal)` to make
+-- metalCount cheap, on the assumption that the planner would ignore it for the
+-- 95% of rows where is_metal = 0. It does not. It chose that index for
+-- topCards, matched 1,351 rows on it, and then sorted them in a temp B-tree
+-- instead of walking idx_cards_price and stopping at 50:
+--
+--   topCards  67 rows -> 2,679   (measured on production, after 003)
+--
+-- A partial index only covers the selective side. metalCount (is_metal = 1)
+-- can still use it; topCards (is_metal = 0) cannot, so the planner goes back to
+-- idx_cards_price. Verified by plan on both sides.
+--
+-- The lesson, which is why this is a migration and not a quiet edit: an index
+-- on a low-selectivity column is not free. It can be chosen INSTEAD of the one
+-- that was doing the work.
+DROP INDEX IF EXISTS idx_cards_metal;
+CREATE INDEX IF NOT EXISTS idx_cards_metal ON cards(is_metal) WHERE is_metal = 1;

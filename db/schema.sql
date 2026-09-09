@@ -81,9 +81,12 @@ CREATE INDEX IF NOT EXISTS idx_cards_product   ON cards(tcgcsv_product_id);
 -- The dominant sort on /cards and /rankings. Turns "top 50 by price" from a
 -- 1,419-row scan plus a sort into a 50-row index read: 4,034 -> 50.
 CREATE INDEX IF NOT EXISTS idx_cards_price     ON cards(market_price DESC);
--- Metal is ~5% of the catalogue, so this earns its keep on "how many are
--- hidden" (is_metal = 1). The planner correctly ignores it for the 95% case.
-CREATE INDEX IF NOT EXISTS idx_cards_metal     ON cards(is_metal);
+-- PARTIAL, and that is load-bearing. Metal is ~5% of the catalogue, so this
+-- serves "how many are hidden" (is_metal = 1) well. A FULL index on the same
+-- column was worse than none: the planner chose it for the 95% case too,
+-- matching 1,351 rows and sorting them instead of walking idx_cards_price and
+-- stopping at 50 — topCards went 67 rows -> 2,679. See migration 004.
+CREATE INDEX IF NOT EXISTS idx_cards_metal     ON cards(is_metal) WHERE is_metal = 1;
 
 -- Facet counts for the filter chips on /cards and /rankings: one row per
 -- option, ~35 rows in total, rebuilt by the catalog job.
