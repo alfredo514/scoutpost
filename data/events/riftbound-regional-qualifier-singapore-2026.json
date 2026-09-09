@@ -1,0 +1,1101 @@
+{
+  "_note": "Three-day event at the Singapore Expo, 2026-09-04 to 2026-09-06 (dates from Riot's own preview article, \"All Eyes on Singapore\", 2026-08-23). Recorded under the Sunday date because that is when the top 8 standings were set — same convention as Barcelona. The results article is dated 2026-09-09, which is its PUBLICATION date and not the event date (§5); it says only \"this past weekend\". Riot published no attendance figure for this event. The Day 1 field is derivable as roughly 1,900 from the metagame table (218 Kennen at 11.5%) and Day 2 as roughly 300 (58 at 19.3%), but those are inferred rather than published, so player_count is left unset instead of storing a computed number. NOTE ON THE ARTICLE: its prose says the Top 8 held \"five Kennen, two Master Yi, Wuju Bladesman, and one Akali\". The decklists and their own Legend Rank fields disagree — Kennen ranks #1-#4 of 218 (four decks), Master Yi #1-#2 of 124, Akali #1/72, Fiora #1/54, totalling eight. The listings are used. Also note the article prints a long \"Best-of Decks\" section BEFORE the top 8, including three players who appear in both; the top 8 here is the final Overall Ranking #8-#1 run (§16). Cards are written as names exactly as published; the importer resolves each to its base printing.",
+  "id": "riftbound-regional-qualifier-singapore-2026",
+  "name": "Riftbound Regional Qualifier — Singapore",
+  "date": "2026-09-06",
+  "format": "constructed",
+  "store": "Singapore Expo",
+  "city": "Singapore",
+  "country": "SG",
+  "source_url": "https://playriftbound.com/en-us/news/organizedplay/singapores-top-decks/",
+  "decks": [
+    {
+      "placement": 1,
+      "player": "Gorica",
+      "legend": "Akali, Rogue Assassin",
+      "notes": "Legend Rank #1/72. Won the event.",
+      "cards": [
+        {
+          "name": "Akali, Rogue Assassin",
+          "qty": 1
+        },
+        {
+          "name": "Akali, Deadly Weapon",
+          "qty": 1
+        },
+        {
+          "name": "Astral Heron",
+          "qty": 3
+        },
+        {
+          "name": "Back Off",
+          "qty": 2
+        },
+        {
+          "name": "Blitzcrank, Impassive",
+          "qty": 2
+        },
+        {
+          "name": "Block",
+          "qty": 1
+        },
+        {
+          "name": "Darius, Trifarian",
+          "qty": 1
+        },
+        {
+          "name": "Defy",
+          "qty": 3
+        },
+        {
+          "name": "Discipline",
+          "qty": 3
+        },
+        {
+          "name": "Falling Star",
+          "qty": 2
+        },
+        {
+          "name": "Kai'Sa, Survivor",
+          "qty": 3
+        },
+        {
+          "name": "Long Sword",
+          "qty": 2
+        },
+        {
+          "name": "Mischievous Marai",
+          "qty": 2
+        },
+        {
+          "name": "Mournful Witness",
+          "qty": 3
+        },
+        {
+          "name": "Not So Fast",
+          "qty": 1
+        },
+        {
+          "name": "Noxus Hopeful",
+          "qty": 1
+        },
+        {
+          "name": "Shuriken Flip",
+          "qty": 3
+        },
+        {
+          "name": "Stellacorn Herder",
+          "qty": 3
+        },
+        {
+          "name": "Sterak's Gage",
+          "qty": 1
+        },
+        {
+          "name": "Zhonya's Hourglass",
+          "qty": 3
+        },
+        {
+          "name": "Forgotten Monument",
+          "qty": 1
+        },
+        {
+          "name": "Sigil of the Storm",
+          "qty": 1
+        },
+        {
+          "name": "Void Gate",
+          "qty": 1
+        },
+        {
+          "name": "Calm Rune",
+          "qty": 6
+        },
+        {
+          "name": "Fury Rune",
+          "qty": 6
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Against the Odds",
+          "qty": 1
+        },
+        {
+          "name": "Akali, Silent",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Focus",
+          "qty": 1
+        },
+        {
+          "name": "Disarming Rake",
+          "qty": 2
+        },
+        {
+          "name": "En Garde",
+          "qty": 1
+        },
+        {
+          "name": "Ferrous Forerunner",
+          "qty": 2
+        },
+        {
+          "name": "Not So Fast",
+          "qty": 1
+        },
+        {
+          "name": "Thermo Beam",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 2,
+      "player": "DSG AwesumRosum",
+      "legend": "Kennen, Heart of the Tempest",
+      "notes": "Legend Rank #1/218.",
+      "cards": [
+        {
+          "name": "Kennen, Heart of the Tempest",
+          "qty": 1
+        },
+        {
+          "name": "Kennen, Storm of Shuriken",
+          "qty": 1
+        },
+        {
+          "name": "Fizz, Trickster",
+          "qty": 1
+        },
+        {
+          "name": "Flash",
+          "qty": 1
+        },
+        {
+          "name": "Gust",
+          "qty": 2
+        },
+        {
+          "name": "Hard Bargain",
+          "qty": 1
+        },
+        {
+          "name": "Last Rites",
+          "qty": 2
+        },
+        {
+          "name": "Lightning Rush",
+          "qty": 3
+        },
+        {
+          "name": "Nocturne, Horrifying",
+          "qty": 3
+        },
+        {
+          "name": "Rhasa the Sunderer",
+          "qty": 3
+        },
+        {
+          "name": "Ride the Wind",
+          "qty": 3
+        },
+        {
+          "name": "Salvage",
+          "qty": 1
+        },
+        {
+          "name": "Seal of Discord",
+          "qty": 3
+        },
+        {
+          "name": "Shadow Order Disciple",
+          "qty": 2
+        },
+        {
+          "name": "Stacked Deck",
+          "qty": 3
+        },
+        {
+          "name": "Star-Crossed",
+          "qty": 1
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 2
+        },
+        {
+          "name": "Tideturner",
+          "qty": 1
+        },
+        {
+          "name": "Traveling Merchant",
+          "qty": 3
+        },
+        {
+          "name": "Treasure Hunter",
+          "qty": 3
+        },
+        {
+          "name": "Up from the Deep",
+          "qty": 1
+        },
+        {
+          "name": "Minefield",
+          "qty": 1
+        },
+        {
+          "name": "Sandswept Tomb",
+          "qty": 1
+        },
+        {
+          "name": "Zaun Warrens",
+          "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Unity",
+          "qty": 2
+        },
+        {
+          "name": "Divine Judgment",
+          "qty": 1
+        },
+        {
+          "name": "Fizz, Trickster",
+          "qty": 1
+        },
+        {
+          "name": "Ravenbloom Prefect",
+          "qty": 1
+        },
+        {
+          "name": "Rebuke",
+          "qty": 1
+        },
+        {
+          "name": "Salvage",
+          "qty": 1
+        },
+        {
+          "name": "Star-Crossed",
+          "qty": 1
+        },
+        {
+          "name": "Tail-Cloaked Matriarch",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 3,
+      "player": "Ekpilot",
+      "legend": "Master Yi, Wuju Bladesman",
+      "notes": "Legend Rank #1/124.",
+      "cards": [
+        {
+          "name": "Master Yi, Wuju Bladesman",
+          "qty": 1
+        },
+        {
+          "name": "Master Yi, Tempered",
+          "qty": 1
+        },
+        {
+          "name": "Alpha Strike",
+          "qty": 1
+        },
+        {
+          "name": "Charm",
+          "qty": 3
+        },
+        {
+          "name": "Defy",
+          "qty": 3
+        },
+        {
+          "name": "Discipline",
+          "qty": 3
+        },
+        {
+          "name": "En Garde",
+          "qty": 2
+        },
+        {
+          "name": "First Mate",
+          "qty": 3
+        },
+        {
+          "name": "Lonely Poro",
+          "qty": 3
+        },
+        {
+          "name": "Not So Fast",
+          "qty": 1
+        },
+        {
+          "name": "Onslaught",
+          "qty": 1
+        },
+        {
+          "name": "Pit Rookie",
+          "qty": 3
+        },
+        {
+          "name": "Punch First",
+          "qty": 3
+        },
+        {
+          "name": "Rampage",
+          "qty": 2
+        },
+        {
+          "name": "Rengar, Trophy Hunter",
+          "qty": 3
+        },
+        {
+          "name": "Ruin Runner",
+          "qty": 2
+        },
+        {
+          "name": "Sabotage",
+          "qty": 1
+        },
+        {
+          "name": "Scuttle Crab",
+          "qty": 3
+        },
+        {
+          "name": "Zhonya's Hourglass",
+          "qty": 2
+        },
+        {
+          "name": "Emperor's Dais",
+          "qty": 1
+        },
+        {
+          "name": "Grove of the God-Willow",
+          "qty": 1
+        },
+        {
+          "name": "Star Spring",
+          "qty": 1
+        },
+        {
+          "name": "Body Rune",
+          "qty": 7
+        },
+        {
+          "name": "Calm Rune",
+          "qty": 5
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Decree of Focus",
+          "qty": 2
+        },
+        {
+          "name": "Disarming Rake",
+          "qty": 3
+        },
+        {
+          "name": "Fiora, Peerless",
+          "qty": 2
+        },
+        {
+          "name": "Not So Fast",
+          "qty": 1
+        },
+        {
+          "name": "Ruin Runner",
+          "qty": 1
+        },
+        {
+          "name": "Sabotage",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 4,
+      "player": "EDG Rico1997",
+      "legend": "Kennen, Heart of the Tempest",
+      "notes": "Legend Rank #2/218.",
+      "cards": [
+        {
+          "name": "Kennen, Heart of the Tempest",
+          "qty": 1
+        },
+        {
+          "name": "Kennen, Storm of Shuriken",
+          "qty": 1
+        },
+        {
+          "name": "Carrion Dredger",
+          "qty": 2
+        },
+        {
+          "name": "Deathgrip",
+          "qty": 1
+        },
+        {
+          "name": "Edge of Night",
+          "qty": 1
+        },
+        {
+          "name": "Forge of the Future",
+          "qty": 2
+        },
+        {
+          "name": "Gust",
+          "qty": 2
+        },
+        {
+          "name": "Last Rites",
+          "qty": 2
+        },
+        {
+          "name": "Lightning Rush",
+          "qty": 3
+        },
+        {
+          "name": "Nocturne, Horrifying",
+          "qty": 3
+        },
+        {
+          "name": "Rebuke",
+          "qty": 1
+        },
+        {
+          "name": "Rhasa the Sunderer",
+          "qty": 3
+        },
+        {
+          "name": "Ride the Wind",
+          "qty": 3
+        },
+        {
+          "name": "Salvage",
+          "qty": 1
+        },
+        {
+          "name": "Seal of Discord",
+          "qty": 3
+        },
+        {
+          "name": "Shadow Order Disciple",
+          "qty": 3
+        },
+        {
+          "name": "Stacked Deck",
+          "qty": 3
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 2
+        },
+        {
+          "name": "Tideturner",
+          "qty": 1
+        },
+        {
+          "name": "Traveling Merchant",
+          "qty": 3
+        },
+        {
+          "name": "Minefield",
+          "qty": 1
+        },
+        {
+          "name": "Veiled Temple",
+          "qty": 1
+        },
+        {
+          "name": "Zaun Warrens",
+          "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Abandon",
+          "qty": 2
+        },
+        {
+          "name": "Deathgrip",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Unity",
+          "qty": 2
+        },
+        {
+          "name": "Forge of the Future",
+          "qty": 1
+        },
+        {
+          "name": "Ravenbloom Prefect",
+          "qty": 1
+        },
+        {
+          "name": "Salvage",
+          "qty": 1
+        },
+        {
+          "name": "Vi, Peacekeeper",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "placement": 5,
+      "player": "lambyseries",
+      "legend": "Kennen, Heart of the Tempest",
+      "notes": "Legend Rank #3/218.",
+      "cards": [
+        {
+          "name": "Kennen, Heart of the Tempest",
+          "qty": 1
+        },
+        {
+          "name": "Kennen, Storm of Shuriken",
+          "qty": 1
+        },
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Existential Dread",
+          "qty": 1
+        },
+        {
+          "name": "Fizz, Trickster",
+          "qty": 2
+        },
+        {
+          "name": "Gust",
+          "qty": 1
+        },
+        {
+          "name": "Last Rites",
+          "qty": 2
+        },
+        {
+          "name": "Lightning Rush",
+          "qty": 3
+        },
+        {
+          "name": "Nocturne, Horrifying",
+          "qty": 3
+        },
+        {
+          "name": "Rebuke",
+          "qty": 2
+        },
+        {
+          "name": "Rhasa the Sunderer",
+          "qty": 3
+        },
+        {
+          "name": "Ride the Wind",
+          "qty": 3
+        },
+        {
+          "name": "Seal of Discord",
+          "qty": 3
+        },
+        {
+          "name": "Shadow Order Disciple",
+          "qty": 3
+        },
+        {
+          "name": "Stacked Deck",
+          "qty": 3
+        },
+        {
+          "name": "Star-Crossed",
+          "qty": 2
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 2
+        },
+        {
+          "name": "Traveling Merchant",
+          "qty": 3
+        },
+        {
+          "name": "Up from the Deep",
+          "qty": 2
+        },
+        {
+          "name": "Minefield",
+          "qty": 1
+        },
+        {
+          "name": "The Candlelit Sanctum",
+          "qty": 1
+        },
+        {
+          "name": "Zaun Warrens",
+          "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Unity",
+          "qty": 2
+        },
+        {
+          "name": "Gust",
+          "qty": 1
+        },
+        {
+          "name": "Imperial Decree",
+          "qty": 1
+        },
+        {
+          "name": "Ravenbloom Prefect",
+          "qty": 2
+        },
+        {
+          "name": "Salvage",
+          "qty": 2
+        },
+        {
+          "name": "Up from the Deep",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 6,
+      "player": "JIN",
+      "legend": "Kennen, Heart of the Tempest",
+      "notes": "Legend Rank #4/218.",
+      "cards": [
+        {
+          "name": "Kennen, Heart of the Tempest",
+          "qty": 1
+        },
+        {
+          "name": "Kennen, Storm of Shuriken",
+          "qty": 1
+        },
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Fizz, Trickster",
+          "qty": 2
+        },
+        {
+          "name": "Gust",
+          "qty": 2
+        },
+        {
+          "name": "Last Rites",
+          "qty": 2
+        },
+        {
+          "name": "Lightning Rush",
+          "qty": 3
+        },
+        {
+          "name": "Nocturne, Horrifying",
+          "qty": 3
+        },
+        {
+          "name": "Rebuke",
+          "qty": 2
+        },
+        {
+          "name": "Rhasa the Sunderer",
+          "qty": 3
+        },
+        {
+          "name": "Ride the Wind",
+          "qty": 3
+        },
+        {
+          "name": "Seal of Discord",
+          "qty": 3
+        },
+        {
+          "name": "Shadow Order Disciple",
+          "qty": 3
+        },
+        {
+          "name": "Stacked Deck",
+          "qty": 3
+        },
+        {
+          "name": "Star-Crossed",
+          "qty": 2
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 1
+        },
+        {
+          "name": "Traveling Merchant",
+          "qty": 3
+        },
+        {
+          "name": "Up from the Deep",
+          "qty": 3
+        },
+        {
+          "name": "Forbidding Waste",
+          "qty": 1
+        },
+        {
+          "name": "Minefield",
+          "qty": 1
+        },
+        {
+          "name": "Zaun Warrens",
+          "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Unity",
+          "qty": 2
+        },
+        {
+          "name": "Imperial Decree",
+          "qty": 1
+        },
+        {
+          "name": "Ravenbloom Prefect",
+          "qty": 2
+        },
+        {
+          "name": "Salvage",
+          "qty": 2
+        },
+        {
+          "name": "Shadows of the Past",
+          "qty": 1
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 7,
+      "player": "GN Malediction",
+      "legend": "Master Yi, Wuju Bladesman",
+      "notes": "Legend Rank #2/124.",
+      "cards": [
+        {
+          "name": "Master Yi, Wuju Bladesman",
+          "qty": 1
+        },
+        {
+          "name": "Master Yi, Tempered",
+          "qty": 1
+        },
+        {
+          "name": "Back Off",
+          "qty": 1
+        },
+        {
+          "name": "Charm",
+          "qty": 3
+        },
+        {
+          "name": "Defy",
+          "qty": 3
+        },
+        {
+          "name": "Discipline",
+          "qty": 3
+        },
+        {
+          "name": "First Mate",
+          "qty": 3
+        },
+        {
+          "name": "Grim Resolve",
+          "qty": 2
+        },
+        {
+          "name": "Lonely Poro",
+          "qty": 3
+        },
+        {
+          "name": "Onslaught",
+          "qty": 1
+        },
+        {
+          "name": "Pit Rookie",
+          "qty": 2
+        },
+        {
+          "name": "Primal Strength",
+          "qty": 1
+        },
+        {
+          "name": "Punch First",
+          "qty": 3
+        },
+        {
+          "name": "Rampage",
+          "qty": 2
+        },
+        {
+          "name": "Rengar, Trophy Hunter",
+          "qty": 3
+        },
+        {
+          "name": "Ruin Runner",
+          "qty": 2
+        },
+        {
+          "name": "Sabotage",
+          "qty": 2
+        },
+        {
+          "name": "Scuttle Crab",
+          "qty": 3
+        },
+        {
+          "name": "Zhonya's Hourglass",
+          "qty": 2
+        },
+        {
+          "name": "Emperor's Dais",
+          "qty": 1
+        },
+        {
+          "name": "Grove of the God-Willow",
+          "qty": 1
+        },
+        {
+          "name": "Seat of Power",
+          "qty": 1
+        },
+        {
+          "name": "Body Rune",
+          "qty": 7
+        },
+        {
+          "name": "Calm Rune",
+          "qty": 5
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Alpha Strike",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Focus",
+          "qty": 2
+        },
+        {
+          "name": "Decree of Strength",
+          "qty": 1
+        },
+        {
+          "name": "Disarming Rake",
+          "qty": 1
+        },
+        {
+          "name": "Sabotage",
+          "qty": 1
+        },
+        {
+          "name": "Tomb-Raider Barbara",
+          "qty": 2
+        },
+        {
+          "name": "Vilemaw",
+          "qty": 1
+        },
+        {
+          "name": "Zhonya's Hourglass",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 8,
+      "player": "Fr0zen",
+      "legend": "Fiora, Grand Duelist",
+      "notes": "Legend Rank #1/54.",
+      "cards": [
+        {
+          "name": "Fiora, Grand Duelist",
+          "qty": 1
+        },
+        {
+          "name": "Fiora, Worthy",
+          "qty": 1
+        },
+        {
+          "name": "Challenge",
+          "qty": 2
+        },
+        {
+          "name": "Dazzling Aurora",
+          "qty": 3
+        },
+        {
+          "name": "Divining Shells",
+          "qty": 2
+        },
+        {
+          "name": "Elder Dragon",
+          "qty": 3
+        },
+        {
+          "name": "Flurry of Blades",
+          "qty": 2
+        },
+        {
+          "name": "Harnessed Dragon",
+          "qty": 2
+        },
+        {
+          "name": "Mobilize",
+          "qty": 3
+        },
+        {
+          "name": "Poppy, Paragon",
+          "qty": 2
+        },
+        {
+          "name": "Rampage",
+          "qty": 3
+        },
+        {
+          "name": "Rengar, Trophy Hunter",
+          "qty": 3
+        },
+        {
+          "name": "Repulse",
+          "qty": 2
+        },
+        {
+          "name": "Rift Herald",
+          "qty": 3
+        },
+        {
+          "name": "Riposte",
+          "qty": 2
+        },
+        {
+          "name": "Sacrifice",
+          "qty": 3
+        },
+        {
+          "name": "Sett, Brawler",
+          "qty": 1
+        },
+        {
+          "name": "Shepherd's Heirloom",
+          "qty": 3
+        },
+        {
+          "name": "Amateur Recital",
+          "qty": 1
+        },
+        {
+          "name": "Risen Altar",
+          "qty": 1
+        },
+        {
+          "name": "Sunken Temple",
+          "qty": 1
+        },
+        {
+          "name": "Body Rune",
+          "qty": 8
+        },
+        {
+          "name": "Order Rune",
+          "qty": 4
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Akshan, Mischievous",
+          "qty": 1
+        },
+        {
+          "name": "Fiora, Victorious",
+          "qty": 1
+        },
+        {
+          "name": "Forge of the Future",
+          "qty": 1
+        },
+        {
+          "name": "Kayle, Justified",
+          "qty": 3
+        },
+        {
+          "name": "Punch First",
+          "qty": 2
+        },
+        {
+          "name": "Salvage",
+          "qty": 2
+        }
+      ]
+    }
+  ]
+}
