@@ -1,0 +1,31 @@
+-- Add sets.card_count, and backfill it.
+--
+-- Apply BEFORE deploying the site Worker that reads it:
+--   wrangler d1 execute scoutpost --remote --file=db/migrations/001-sets-card-count.sql
+--
+-- Safe to run against the live database while the old code is serving: the
+-- column is additive and the old queries never look at it. Running it first and
+-- deploying second means there is no window where the deployed code expects a
+-- column that does not exist yet.
+--
+-- WHY
+--
+-- EVENT_ERA orders candidate sets by their card count to break ties between
+-- sets sharing a release date. That count used to be
+-- `(SELECT COUNT(*) FROM cards WHERE set_id = s.id)` — inside a correlated
+-- subquery that is evaluated ONCE PER ROW of whatever query embeds it. So every
+-- deck row and every event row re-counted every card in every candidate set:
+-- ~1,419 rows read per row, ~90,000 for deckEraCounts and the same again for
+-- listDecks, about 180,000 rows for one /decks view. Twenty-eight page views
+-- spent the entire 5,000,000-row daily free tier. It caused the outages on
+-- 2026-09-08 and 2026-09-09.
+--
+-- Idempotent apart from the ALTER, which fails harmlessly if the column is
+-- already there ("duplicate column name: card_count") — run the UPDATE alone in
+-- that case.
+ALTER TABLE sets ADD COLUMN card_count INTEGER NOT NULL DEFAULT 0;
+
+-- Unconditional, over every set: a set that lost its last card must go to 0
+-- rather than keep a stale count, or it stays in the era list forever.
+-- The catalog job runs exactly this statement after every card write.
+UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id);

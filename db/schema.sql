@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS sets (
   name          TEXT NOT NULL,             -- 'Origins', 'Vendetta', ...
   release_date  TEXT,                      -- ISO date (YYYY-MM-DD)
   tcgcsv_group_id INTEGER,                 -- TCGplayer groupId, for price joins
+  -- How many cards are in this set. Denormalised from `cards` by the catalog
+  -- job for one reason: EVENT_ERA needs it as a TIEBREAK, and computing it with
+  -- a correlated COUNT(*) meant counting every card in every candidate set once
+  -- per row — about 1,419 rows read per event row, ~90,000 for a single
+  -- /decks view. Same lesson as §26: a value that describes a row belongs on
+  -- the row, not in a subquery the reader pays for. Derived; rebuildable with
+  --   UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id);
+  card_count    INTEGER NOT NULL DEFAULT 0,
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

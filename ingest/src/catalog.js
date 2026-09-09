@@ -188,6 +188,24 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
   // Sets first — cards reference them.
   await runBatched(db, setStmts);
   const written = await runBatched(db, cardStmts);
-  log(`catalog: wrote ${setIds.length} sets, ${written} cards`);
+
+  /* And last, the per-set card count, which is derived from the rows just
+   * written and so has to come after them.
+   *
+   * This is not bookkeeping. `sets.card_count` is what EVENT_ERA orders on, and
+   * before it was a column that ordering was a correlated COUNT(*) over `cards`
+   * evaluated once per event and once per deck — ~180,000 rows read for a
+   * single /decks view. Keeping it current here is what keeps the read path
+   * flat. If it is ever wrong, every era on the site is wrong, so it is
+   * recomputed in full rather than adjusted.
+   *
+   * One statement over every set, including sets that lost their last card:
+   * a conditional update would leave a stale count behind, the same reason
+   * rebuildLatestPrices deletes before it inserts (§25). */
+  await db
+    .prepare('UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id)')
+    .run();
+
+  log(`catalog: wrote ${setIds.length} sets, ${written} cards, refreshed card_count`);
   return written;
 }

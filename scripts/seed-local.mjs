@@ -273,8 +273,13 @@ async function main() {
   // confusing "You must provide either --command or --file".
   console.log('\nrecomputing deck costs…');
   const costSql = path.join('build', 'deck-costs.sql');
-  fs.writeFileSync(costSql, `${DECK_COST_SQL};
-`);
+  // sets.card_count is what EVENT_ERA orders on, and the inserts above leave it
+  // at its default of 0 — which would hide every set from the era filter. The
+  // catalog job does this same refresh against production.
+  fs.writeFileSync(
+    costSql,
+    `UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id);\n${DECK_COST_SQL};\n`,
+  );
   wrangler(['d1', 'execute', 'scoutpost', '--local', `--file=${costSql}`, '-y']);
 
   console.log('\nlocal database ready — run `npm run dev`');

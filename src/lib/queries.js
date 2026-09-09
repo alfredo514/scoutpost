@@ -592,13 +592,15 @@ export async function printingFacets(db) {
 export async function setEras(db) {
   const { results } = await db
     .prepare(
-      `SELECT s.id, s.name, s.release_date, COUNT(c.id) AS cards
-         FROM sets s LEFT JOIN cards c ON c.set_id = s.id
+      // s.card_count, not COUNT(c.id) over a join to cards: this ran on every
+      // /events and /decks view and read all 1,419 card rows to produce nine
+      // numbers that only change when the catalogue does. See EVENT_ERA below.
+      `SELECT s.id, s.name, s.release_date, s.card_count AS cards
+         FROM sets s
         WHERE s.release_date IS NOT NULL
           AND s.release_date <= date('now')
-        GROUP BY s.id
-       HAVING cards > 0
-        ORDER BY s.release_date DESC, cards DESC`,
+          AND s.card_count > 0
+        ORDER BY s.release_date DESC, s.card_count DESC`,
     )
     .all();
 
@@ -611,21 +613,34 @@ export async function setEras(db) {
  * Which era an event falls in: the most recent set released on or before it.
  * Expressed as SQL so it can be both selected and filtered on.
  *
- * `EXISTS (... FROM cards ...)` excludes groups that carry no singles, and it
- * has to be a WHERE condition rather than only a tiebreak. The card-count
- * ordering below breaks ties between sets sharing a release DATE; it does
- * nothing about a card-less group released a day LATER, which simply wins.
- * That is not hypothetical — "Riftbound Bundles" is published as 2026-08-01,
- * one day after Vendetta, so every event from August onwards was being filed
- * under a sealed-product line instead of the format that was actually legal.
+ * `card_count > 0` excludes groups that carry no singles, and it has to be a
+ * WHERE condition rather than only a tiebreak. The ordering below breaks ties
+ * between sets sharing a release DATE; it does nothing about a card-less group
+ * released a day LATER, which simply wins. That is not hypothetical —
+ * "Riftbound Bundles" is published as 2026-08-01, one day after Vendetta, so
+ * every event from August onwards was being filed under a sealed-product line
+ * instead of the format that was actually legal.
+ *
+ * **`s.card_count` is a COLUMN, and it must stay one.** This read
+ * `(SELECT COUNT(*) FROM cards WHERE set_id = s.id)`, which looks harmless and
+ * is not: this whole expression is a correlated subquery evaluated ONCE PER
+ * ROW, so that count re-counted every card in every candidate set for every
+ * deck and every event. Measured by plan: ~1,419 rows read per row, ~90,000 for
+ * deckEraCounts alone and the same again for listDecks — about 180,000 rows for
+ * one /decks view, which is 28 page views to the whole daily free tier. It cost
+ * two outages before it was found, on 2026-09-08 and 2026-09-09.
+ *
+ * The general rule, which is §26 restated: an expression inside EVENT_ERA is
+ * paid for once per row of whatever query embeds it. Nothing that touches
+ * another table belongs in here.
  *
  * Must stay in step with setEras() above, which applies the same two rules.
  */
 const EVENT_ERA = `
   (SELECT s.id FROM sets s
     WHERE s.release_date <= e.date
-      AND EXISTS (SELECT 1 FROM cards WHERE set_id = s.id)
-    ORDER BY s.release_date DESC, (SELECT COUNT(*) FROM cards WHERE set_id = s.id) DESC
+      AND s.card_count > 0
+    ORDER BY s.release_date DESC, s.card_count DESC
     LIMIT 1)`;
 
 /**
