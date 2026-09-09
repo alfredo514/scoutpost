@@ -40,6 +40,7 @@ import { execFileSync } from 'node:child_process';
 // copied so the local database can never price a deck differently from the
 // live site — see the note in that file.
 import { DECK_COST_SQL } from '../ingest/src/deck-cost-sql.js';
+import { CATALOG_REBUILD_SQL, PRICE_REBUILD_SQL } from '../ingest/src/facets-sql.js';
 
 const UA = 'Scoutpost/1.0 (+https://softsauce.co/scoutpost)';
 const TCG = 'https://tcgcsv.com/tcgplayer';
@@ -276,10 +277,22 @@ async function main() {
   // sets.card_count is what EVENT_ERA orders on, and the inserts above leave it
   // at its default of 0 — which would hide every set from the era filter. The
   // catalog job does this same refresh against production.
-  fs.writeFileSync(
-    costSql,
-    `UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id);\n${DECK_COST_SQL};\n`,
-  );
+  /* Everything the read path expects to be precomputed, in the order the two
+   * ingest jobs run it. Miss any of these and local looks broken in a way
+   * production is not: no era filter without card_count, no filter chips
+   * without card_facets, an empty value board without the set columns.
+   *
+   * Imported from the same modules the Workers use, never copied — a local
+   * database that computes these differently from production is worse than no
+   * local database at all (§27). */
+  const statements = [
+    'UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id)',
+    DECK_COST_SQL,
+    ...CATALOG_REBUILD_SQL,
+    ...PRICE_REBUILD_SQL,
+  ];
+
+  fs.writeFileSync(costSql, `${statements.join(';\n')};\n`);
   wrangler(['d1', 'execute', 'scoutpost', '--local', `--file=${costSql}`, '-y']);
 
   console.log('\nlocal database ready — run `npm run dev`');

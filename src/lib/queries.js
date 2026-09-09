@@ -18,6 +18,13 @@
  * it.
  */
 
+import {
+  METAL_HIDDEN,
+  METAL_ONLY,
+  PRINTINGS,
+  RARITY_RANK,
+} from '../../shared/card-sql.js';
+
 /**
  * Prices live ON the card row. There is no price join.
  *
@@ -362,34 +369,17 @@ export async function allDeckIds(db) {
 }
 
 /**
- * Printing groups, expressed as SQL over the `variant` column.
+ * Metal prize cards — see shared/card-sql.js for what they are and why they
+ * are hidden by default.
  *
- * The catalogue records the printing in `variant`: empty for the base card,
- * 'a' for the alternate-art showcase, 'star' for the Signature, and codes like
- * sp1/r01/t01 for promos and tokens. Naming them here means a reader never has
- * to know that, and a Signature is findable by the word players actually use.
+ * The definition is a name match, because the product name is the only signal
+ * TCGplayer gives. But a query must never RUN that match: `LIKE '%(Metal)%'`
+ * begins with a wildcard, so no index can serve it and it is a guaranteed full
+ * scan — and /rankings applied it to every query it ran, by default, on every
+ * view. The name test now happens once a night to set `cards.is_metal`, and
+ * queries filter on the column. Measured: metalCount 1,419 rows -> 68.
  */
-const PRINTINGS = {
-  standard: "c.variant = ''",
-  showcase: "c.variant = 'a'",
-  signature: "c.variant = 'star'",
-  promo: "c.variant NOT IN ('', 'a', 'star')",
-};
-
-/**
- * Metal prize cards.
- *
- * TCGplayer marks them only in the product name — "Teemo, Swift Scout (Metal)
- * (Prize Wall)" — so a name match is the only signal there is. They are the
- * metal-printed prizes handed out at events: real cards with real prices, but
- * almost none have a photograph, and they are expensive enough to take over a
- * leaderboard sorted by price.
- *
- * Measured on 2026-08-30: 68 Metal cards, 15 of them in the top 50 by price —
- * and those 15 were **every** art-less card in that top 50. Hiding Metal and
- * hiding "expensive things with no picture" were the same operation.
- */
-const METAL_MARKER = "c.name NOT LIKE '%(Metal)%'";
+const METAL_MARKER = METAL_HIDDEN;
 
 function cardFilterParts({ type, color, set, rarity, printing, q, priced, metal }) {
   const where = [];
@@ -470,11 +460,6 @@ function cardFilterSql(filters) {
  */
 const UNPRICED_LAST_ASC = 'c.market_price ASC NULLS LAST';
 
-/* Rarity has a meaningful order that alphabetical destroys. */
-const RARITY_RANK = `CASE c.rarity
-  WHEN 'common' THEN 1 WHEN 'uncommon' THEN 2 WHEN 'rare' THEN 3
-  WHEN 'epic' THEN 4 WHEN 'showcase' THEN 5 ELSE 6 END`;
-
 const CARD_SORTS = {
   // No CASE and no NULLS clause: DESC already puts unpriced last, and the bare
   // column lets idx_cards_price serve the whole thing.
@@ -547,51 +532,56 @@ export async function countCards(db, filters = {}) {
   return row?.n ?? 0;
 }
 
-/** Facet counts, so a filter button can say how much is behind it. */
+/**
+ * Facet counts, so a filter button can say how much is behind it.
+ *
+ * **One read of `card_facets`, ~30 rows.** This was four separate GROUP BY
+ * queries over the whole catalogue — 11,369 rows read, measured — running on
+ * every /cards AND every /rankings view, to render a row of chips whose numbers
+ * change once a night. The counts are now written by the catalog job; see
+ * ingest/src/facets-sql.js.
+ *
+ * Ordering comes from the stored `position` rather than being re-derived here,
+ * so the rule for each kind — types and colours by size, sets newest first,
+ * rarities by scarcity — lives in exactly one place: the rebuild.
+ */
 export async function cardFacets(db) {
-  const [types, colors, sets, rarities] = await Promise.all([
-    db.prepare('SELECT card_type AS v, COUNT(*) AS n FROM cards WHERE card_type IS NOT NULL GROUP BY card_type ORDER BY n DESC').all(),
-    db.prepare('SELECT faction AS v, COUNT(*) AS n FROM cards WHERE faction IS NOT NULL GROUP BY faction ORDER BY n DESC').all(),
-    // Newest set first — that is the one people are looking for.
-    db.prepare(
-      `SELECT c.set_id AS v, COALESCE(s.name, c.set_id) AS label, COUNT(*) AS n
-         FROM cards c LEFT JOIN sets s ON s.id = c.set_id
-        GROUP BY c.set_id
-        ORDER BY s.release_date DESC, c.set_id ASC`,
-    ).all(),
-    // Scarcity order, not alphabetical — 'common, epic, rare' would be absurd.
-    db.prepare(
-      `SELECT rarity AS v, COUNT(*) AS n FROM cards WHERE rarity IS NOT NULL
-        GROUP BY rarity ORDER BY ${RARITY_RANK.replace(/c\.rarity/, 'rarity')} ASC`,
-    ).all(),
-  ]);
+  const { results } = await db
+    .prepare(
+      `SELECT kind, value AS v, label, n FROM card_facets
+        WHERE kind IN ('type', 'faction', 'set', 'rarity')
+        ORDER BY kind, position`,
+    )
+    .all();
+
+  const rows = results ?? [];
+  const of = (kind) => rows.filter((r) => r.kind === kind).map(({ v, label, n }) => ({ v, label, n }));
+
   return {
-    types: types.results ?? [],
-    colors: colors.results ?? [],
-    sets: sets.results ?? [],
-    rarities: rarities.results ?? [],
+    types: of('type'),
+    colors: of('faction'),
+    sets: of('set'),
+    rarities: of('rarity'),
   };
 }
 
 /**
  * How many cards fall in each printing group.
  *
- * One pass with a conditional count per group, not one query per group. The
- * loop that was here awaited four round trips in sequence for four numbers off
- * the same 1,180-row scan — on the critical path of both /cards and /rankings,
- * where every one of those trips is latency the reader waits for.
+ * Four rows out of `card_facets`, against a 1,419-row scan before. It was
+ * already down to one query rather than four round trips; the remaining cost
+ * was that the query still counted the whole catalogue on every view.
  *
- * Order comes from PRINTINGS, so the chips stay in the order that object
- * declares and adding a group there needs no change here.
+ * Order still comes from PRINTINGS — the rebuild numbers the rows from that
+ * object, so adding a group there needs no change here or in the read.
  */
 export async function printingFacets(db) {
-  const groups = Object.entries(PRINTINGS);
-  const columns = groups
-    .map(([key, sql], i) => `SUM(CASE WHEN ${sql} THEN 1 ELSE 0 END) AS g${i}`)
-    .join(', ');
-
-  const row = await db.prepare(`SELECT ${columns} FROM cards c`).first();
-  return groups.map(([key], i) => ({ v: key, n: row?.[`g${i}`] ?? 0 }));
+  const { results } = await db
+    .prepare(
+      "SELECT value AS v, n FROM card_facets WHERE kind = 'printing' ORDER BY position",
+    )
+    .all();
+  return results ?? [];
 }
 
 /**
@@ -808,7 +798,7 @@ export async function marketStats(db, filters = {}) {
  */
 export async function metalCount(db, filters = {}) {
   const { where, params } = cardFilterParts({ ...filters, metal: undefined, priced: 'yes' });
-  const clause = [...where, "c.name LIKE '%(Metal)%'"].join(' AND ');
+  const clause = [...where, METAL_ONLY].join(' AND ');
   // No join, for the same reason as countCards: nothing here reads `sets`.
   const row = await db
     .prepare(
@@ -824,31 +814,37 @@ export async function metalCount(db, filters = {}) {
 /**
  * Every set, ranked by how much of the catalogue's value sits in it.
  *
- * The priciest card per set comes from a ROW_NUMBER partition rather than a
- * correlated subquery. Two correlated lookups per set each re-scanned the whole
- * catalogue: 28,762 rows read against 23,025 for this, measured on 2026-08-28
- * for identical output. That gap widens with every set added, and D1's free
- * tier is metered on rows read — see §10 of the handoff.
+ * **Read straight off `sets`, ~16 rows.** The history here is three rounds of
+ * the same lesson:
+ *
+ *   1. Two correlated lookups per set, each re-scanning the catalogue: 28,762
+ *      rows read.
+ *   2. A ROW_NUMBER partition over every card, which was better and measured
+ *      23,025 on 2026-08-28 — then 7,127 once prices moved onto the card row.
+ *   3. Here: three columns the price job writes, plus one primary-key lookup
+ *      for the top card's name.
+ *
+ * Step 2 is the trap §26 names — a big win on a query that still scans the
+ * whole table is not a fix. Ask what the query would read if it were perfect.
+ * This board shows eight rows; it should read about eight rows.
+ *
+ * `WHERE card_count > 0` keeps card-less TCGplayer product groups off the
+ * board, the same rule setEras and EVENT_ERA apply.
  */
 export async function setValueTable(db) {
   const { results } = await db
     .prepare(
-      `WITH j AS (
-         SELECT c.set_id, c.id, c.name, c.market_price AS px,
-                ROW_NUMBER() OVER (PARTITION BY c.set_id ORDER BY c.market_price DESC) AS px_rank
-           FROM cards c
-       )
-       SELECT s.id, s.name, s.release_date,
-              COUNT(j.id) AS cards,
-              SUM(CASE WHEN j.px IS NOT NULL THEN 1 ELSE 0 END) AS priced,
-              SUM(j.px) AS total,
-              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.px   END) AS top_price,
-              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.name END) AS top_name,
-              MAX(CASE WHEN j.px_rank = 1 AND j.px IS NOT NULL THEN j.id   END) AS top_id
+      `SELECT s.id, s.name, s.release_date,
+              s.card_count   AS cards,
+              s.priced_count AS priced,
+              s.total_value  AS total,
+              s.top_card_id  AS top_id,
+              c.name         AS top_name,
+              c.market_price AS top_price
          FROM sets s
-         JOIN j ON j.set_id = s.id
-        GROUP BY s.id
-        ORDER BY total DESC`,
+         LEFT JOIN cards c ON c.id = s.top_card_id
+        WHERE s.card_count > 0
+        ORDER BY s.total_value DESC`,
     )
     .all();
   return results ?? [];

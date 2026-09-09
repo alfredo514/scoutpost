@@ -14,6 +14,7 @@
  */
 
 import { IngestError, fetchJson, log, nonEmptyString, runBatched, warn } from './util.js';
+import { CATALOG_REBUILD_SQL } from './facets-sql.js';
 
 const API = 'https://riftscribe.gg/api/cards';
 const PAGE_SIZE = 200;
@@ -206,6 +207,17 @@ export async function writeCatalog(db, cards, setNames = new Map()) {
     .prepare('UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id)')
     .run();
 
-  log(`catalog: wrote ${setIds.length} sets, ${written} cards, refreshed card_count`);
+  /* And the catalogue-derived read caches: the facet counts behind every filter
+   * chip, and cards.is_metal.
+   *
+   * Batched, because a half-applied rebuild is worse than a stale one — the
+   * facet DELETE lands before its INSERT, and a page rendered between the two
+   * would show a filter bar with no chips at all. */
+  await db.batch(CATALOG_REBUILD_SQL.map((sql) => db.prepare(sql)));
+
+  log(
+    `catalog: wrote ${setIds.length} sets, ${written} cards, ` +
+      'refreshed card_count, facets and is_metal',
+  );
   return written;
 }

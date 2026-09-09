@@ -33,6 +33,7 @@ import {
 } from './util.js';
 import { PROMO_GROUPS } from './promos.js';
 import { DECK_COST_SQL } from './deck-cost-sql.js';
+import { PRICE_REBUILD_SQL } from './facets-sql.js';
 
 const BASE = 'https://tcgcsv.com/tcgplayer';
 const CATEGORY_ID = 89; // Riftbound: League of Legends Trading Card Game
@@ -406,6 +407,23 @@ export async function rebuildDeckCosts(db) {
   const row = await db.prepare('SELECT COUNT(*) AS n FROM decks WHERE total_cost IS NOT NULL').first();
   const n = row?.n ?? 0;
   log(`prices: deck costs recomputed — ${n} decks`);
+  return n;
+}
+
+/**
+ * Refresh the price-derived read caches: the three columns on `sets` behind the
+ * "Value by set" board on /rankings.
+ *
+ * Separate from the catalogue rebuild because these move with the MARKET, not
+ * with the card list, so they have to run after prices land rather than after
+ * the catalogue does. Running it in the wrong job would leave the board a day
+ * stale every day, silently.
+ */
+export async function rebuildSetValues(db) {
+  await db.batch(PRICE_REBUILD_SQL.map((sql) => db.prepare(sql)));
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM sets WHERE total_value IS NOT NULL').first();
+  const n = row?.n ?? 0;
+  log(`prices: set values refreshed — ${n} sets`);
   return n;
 }
 

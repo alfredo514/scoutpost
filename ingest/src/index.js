@@ -27,6 +27,7 @@ import {
   fetchGroups,
   rebuildDeckCosts,
   rebuildLatestPrices,
+  rebuildSetValues,
   snapshotDeckCosts,
   writeCardText,
   writePrices,
@@ -99,8 +100,11 @@ async function runPrices(env, trigger) {
     // day where it is not rebuilt is a day the site shows yesterday's prices.
     await rebuildLatestPrices(env.DB);
 
-    // Strictly after the card prices land: this prices decks against them.
+    // Strictly after the card prices land: these price decks and sets against
+    // them. rebuildSetValues fills the "Value by set" board's columns, which
+    // move with the market and so cannot ride along with the catalogue job.
     await rebuildDeckCosts(env.DB);
+    await rebuildSetValues(env.DB);
     // And strictly after THAT: the history copies the columns rebuildDeckCosts
     // just wrote, so the chart can never disagree with the page.
     await snapshotDeckCosts(env.DB, collected.date);

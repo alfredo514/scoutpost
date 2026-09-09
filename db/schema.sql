@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS sets (
   -- the row, not in a subquery the reader pays for. Derived; rebuildable with
   --   UPDATE sets SET card_count = (SELECT COUNT(*) FROM cards WHERE set_id = sets.id);
   card_count    INTEGER NOT NULL DEFAULT 0,
+  -- Price-derived, refreshed by the price job for the "Value by set" board on
+  -- /rankings. That board used a partitioned window function over every card,
+  -- 7,127 rows read per view, for figures that move once a night.
+  priced_count  INTEGER NOT NULL DEFAULT 0,
+  total_value   REAL,
+  top_card_id   TEXT,
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -60,6 +66,11 @@ CREATE TABLE IF NOT EXISTS cards (
   market_price      REAL,
   low_price         REAL,
   price_date        TEXT,
+  -- Set nightly from the card's name. Queries filter on THIS, never on
+  -- name LIKE '%(Metal)%' — a leading wildcard can never use an index, so the
+  -- name test was a guaranteed full scan on every /rankings query. See
+  -- shared/card-sql.js for the definition. Measured: 1,419 rows -> 68.
+  is_metal          INTEGER NOT NULL DEFAULT 0,
   tcgcsv_product_id INTEGER,               -- NULL until matched to a TCGplayer product
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -70,6 +81,24 @@ CREATE INDEX IF NOT EXISTS idx_cards_product   ON cards(tcgcsv_product_id);
 -- The dominant sort on /cards and /rankings. Turns "top 50 by price" from a
 -- 1,419-row scan plus a sort into a 50-row index read: 4,034 -> 50.
 CREATE INDEX IF NOT EXISTS idx_cards_price     ON cards(market_price DESC);
+-- Metal is ~5% of the catalogue, so this earns its keep on "how many are
+-- hidden" (is_metal = 1). The planner correctly ignores it for the 95% case.
+CREATE INDEX IF NOT EXISTS idx_cards_metal     ON cards(is_metal);
+
+-- Facet counts for the filter chips on /cards and /rankings: one row per
+-- option, ~35 rows in total, rebuilt by the catalog job.
+--
+-- These were five queries counting the whole catalogue on EVERY page view —
+-- 12,788 rows read to render a row of chips whose numbers change once a night.
+-- Derived data; the cards table remains the source of truth.
+CREATE TABLE IF NOT EXISTS card_facets (
+  kind     TEXT NOT NULL,     -- 'type' | 'faction' | 'set' | 'rarity' | 'printing'
+  value    TEXT NOT NULL,     -- the raw value a filter travels as
+  label    TEXT,              -- display name where it differs from the value (sets)
+  n        INTEGER NOT NULL,
+  position INTEGER NOT NULL,  -- render order, decided at write time
+  PRIMARY KEY (kind, value)
+);
 
 -- ─────────────────────────── Prices ────────────────────────────
 
