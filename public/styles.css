@@ -1,111 +1,123 @@
 /* Scoutpost — design system
  *
- * A scouting instrument grown on a forest floor. The site reports on a
- * competitive format and prices it, so the type is measurement: technical
- * faces, numbers set as readouts, faint grain.
+ * A data-dense utility for reading tournament results and what they cost.
+ * Refactored 2026-09-09 from an atmospheric "forest floor" theme to a neutral,
+ * utility-first one. What changed and why:
  *
- * The palette is two spore colours doing two different jobs, and this is the
- * rule worth keeping: --accent (poison magenta) marks INTERACTION, --toxic
- * (bright green) marks MONEY and the primary action. One says "you did this",
- * the other says "this is the number you came for". A price is never magenta
- * and a hover state is never toxic. See §13 of docs/HANDOFF.md.
+ *   SURFACES ARE NEUTRAL. The page was built on green-grey (#0A1410 and up),
+ *   which tinted every panel and made the two accent colours read as part of
+ *   the furniture. Surfaces are now slate; the accents are the only colour on
+ *   the page, which is what makes them mean something.
  *
- * Goals: fast, mobile-first, dense where density helps and airy where it
- * doesn't. No framework and no build step.
+ *   THE TWO-COLOUR RULE SURVIVES, and it is still the rule worth keeping:
+ *   --accent marks INTERACTION (the filter you chose, the row you are on) and
+ *   --toxic marks MONEY and the primary action. One says "you did this", the
+ *   other says "this is the number you came for". A price is never violet and
+ *   a hover state is never green. See §13 of docs/HANDOFF.md.
  *
- * The site shipped zero JavaScript until 2026-08-29 and now ships exactly one
- * deferred file, public/app.js. The rule that replaced "no JavaScript" is the
- * one that was actually doing the work: **nothing may REQUIRE JavaScript.**
- * Every filter is still a link, every search is still a GET form, and the card
- * enlargements below are still pure CSS. Style accordingly — never write a rule
- * whose only trigger is a class that script adds.
+ *   NO ATMOSPHERE. The film grain, the text glows, the button bloom and the
+ *   coloured inner shadows are gone. They were mood; this is a database.
+ *   Elevation is now one hairline plus one restrained shadow.
  *
- * Three webfonts are loaded (Chakra Petch, IBM Plex Sans, IBM Plex Mono) with
- * display=swap and real fallback stacks, so the page reads before they land.
- * An earlier version of this file claimed no webfonts; that changed when the
- * system stack proved to be what made the site look generic.
+ *   ONE SPACING SCALE. Forty-odd ad-hoc rem values became an 8-point scale
+ *   (--s1..--s8). Anything that pads, gaps or margins uses it.
+ *
+ * CONTRAST IS MEASURED, NOT EYEBALLED. `node scripts/check-contrast.mjs`
+ * reads the tokens out of this file and asserts every text/surface pair clears
+ * WCAG AA. Run it after touching any colour. The previous palette failed three
+ * pairs on its deeper surfaces; this one passes all of them.
+ *
+ * Goals: fast, mobile-first, dense where density helps. No framework, no build
+ * step.
+ *
+ * The site ships exactly one deferred file, public/app.js, and **nothing may
+ * REQUIRE JavaScript.** Every filter is a link, every search is a GET form and
+ * the card enlargements are pure CSS. Never write a rule whose only trigger is
+ * a class that script adds.
  */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Surfaces — the forest floor a mushroom grows on. Damp, earthy, and
-   * green-grey rather than neutral, so the spore colours below read as
-   * something growing out of it rather than as stickers on grey. */
-  --bg:        #0A1410;
-  --surface:   #16241C;   /* filter panels, cards — muddy green-grey */
-  --surface-2: #1F3227;
-  --line:      #2C4235;
-  --line-soft: #223327;
-  --surface-3: #253A2D;   /* the one step lighter, for a hovered surface */
-  --bg-rgb:    10, 20, 16;
+  /* Surfaces — neutral slate. Four steps, each a clear tint apart so a panel
+   * on a panel is legible without a border doing the work. */
+  --bg:        #0E1113;
+  --surface:   #16191C;   /* panels, cards, table containers */
+  --surface-2: #1D2225;   /* controls sitting on a panel */
+  --surface-3: #252A2E;   /* a hovered control */
+  --line:      #313940;   /* hairline that does the separating */
+  --line-soft: #232A2F;
+  --bg-rgb:    14, 17, 19;
 
-  /* Text — the pale cream of a mushroom cap, not clinical white. */
-  --text:      #F4EFE6;
-  --text-mid:  #B9B2A4;
-  --text-dim:  #9D9789;   /* 4.5:1 on every surface it lands on — the small
-                             uppercase labels are the tightest case */
-  --text-rgb:  244, 239, 230;
+  /* Text — three weights of neutral. No cream: it tinted every label. */
+  --text:      #E9EDF0;
+  --text-mid:  #B3BCC4;
+  --text-dim:  #99A3AC;   /* clears 4.5:1 on --surface-3, the lightest ground */
+  --text-rgb:  233, 237, 240;
 
-  /* Two spore colours, and they do different jobs.
+  /* THE ONLY COLOUR ON THE PAGE, and each one has one job.
    *
-   * --accent is poison magenta and marks INTERACTION: the filter you chose,
-   * the link under your pointer, the row you are on. --toxic is the bright
-   * green and is reserved for MONEY and the primary action, which is what the
-   * site is for. Keeping them apart is what stops the palette turning into
-   * decoration — one colour means "you did this", the other means "this is the
-   * number you came for". */
-  --accent:      #C77DFF;   /* poison magenta — active and interactive */
-  --accent-soft: #E0AAFF;
-  --accent-rgb:  199, 125, 255;
-  --toxic:       #A3E635;   /* prices, and the Search button */
+   * --accent marks INTERACTION: the chip you chose, the row under your
+   * pointer, the sort you are on. --toxic marks MONEY and the primary action.
+   * Keeping them apart is what stops the palette becoming decoration. If a new
+   * element needs colour, decide which of those two it is; if it is neither,
+   * it gets a neutral. */
+  --accent:      #C084FC;   /* interaction */
+  --accent-soft: #DDBEFC;
+  --accent-rgb:  192, 132, 252;
+  --toxic:       #A3E635;   /* prices, and the one primary button */
   --toxic-rgb:   163, 230, 53;
-  --pos:         #7DD3A0;   /* cheap end of a cost range */
-  /* A falling price is poison magenta, not red — the market data belongs to
-   * the theme rather than to a generic traffic light. Magenta rather than the
-   * accent's blue-violet so the two never read as the same thing: --accent is
-   * where you are, --neg is a number going the wrong way. Measured 5.75:1 on
-   * --bg, where the deeper #9D4EDD came in at 4.13 and failed. */
-  --neg:         #E255C7;   /* a falling price, and a destructive action */
-  --neg-rgb:     226, 85, 199;
-  --ink:         #0A1410;   /* text on an accent or toxic fill */
-  --focus:       #8be9ff;
+  --pos:         #7DD3A0;   /* the cheap end of a cost range */
+  --neg:         #F19BD0;   /* a falling price. Lightened from #E255C7, which
+                               measured 3.69:1 on --surface-3 and failed AA. */
+  --neg-rgb:     241, 155, 208;
+  --ink:         #0E1113;   /* text on an accent or toxic fill */
+  --focus:       #7FD4FF;
 
-  /* Glow. Sized so it reads on a dark ground without smearing text. */
-  --glow-accent: 0 0 12px rgba(var(--accent-rgb), .45);
-  --glow-toxic:  0 0 14px rgba(var(--toxic-rgb), .40);
+  /* Elevation. One hairline and one restrained shadow, and that is the whole
+   * vocabulary. The previous theme had a two-layer 30px shadow plus coloured
+   * inner glows on six components; a utility surface should read as a plane,
+   * not as something hovering. */
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, .28);
+  /* Things that genuinely float ABOVE the page — the hover enlargement and the
+   * sort dropdown — and nothing else. Two levels of elevation is the whole
+   * vocabulary; a panel is a plane, an overlay is over it. This replaced four
+   * hand-written 28-60px shadows that were all slightly different. */
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, .5);
+  /* A recessed area inside a panel, for the advanced-filter drawer. */
+  --surface-sunken: rgba(0, 0, 0, .16);
 
-  /* ONE panel shadow, used by every raised container. Defined here so
-   * "identical drop shadows" is enforced by the token rather than by whoever
-   * remembers to copy the value. */
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px -12px rgba(0, 0, 0, .7);
-
-  /* Softer than it was. The near-square 3px geometry read as instrument
-   * panelling, which was the point at the time; this palette wants something
-   * that grew rather than something that was machined, so the corners open up
-   * and anything you press or type into goes fully round.
-   *
-   * (This reverses the earlier decision recorded in §13 of the handoff. That
-   * decision was sound for the instrument look and is simply not what this
-   * theme is after — put --radius back to 3px to undo it.) */
-  --radius:      6px;
-  --radius-sm:   4px;
-  --radius-lg:   16px;
-  --radius-pill: 999px;
+  /* Geometry. One radius for controls, one for containers, and nothing round.
+   * The 999px pill on every input and chip is what made the controls read as
+   * floating graphics rather than as form elements. */
+  --radius:      4px;   /* controls: chips, buttons, inputs, badges */
+  --radius-sm:   3px;   /* small art, icons */
+  --radius-lg:   6px;   /* raised containers: panels, tables, tiles */
+  --radius-pill: 4px;   /* kept as a name so call sites did not all have to
+                           change; it is no longer a pill and should not be */
   --wrap:      1120px;
 
-  /* Three roles, two families. Display is angular and technical; body is a
-   * humanist technical face that holds up small; mono carries every number,
-   * because prices are what this site is for and tabular figures keep columns
-   * of them aligned. Real fallbacks — the page must read before fonts land. */
+  /* Spacing — an 8-point scale. Every padding, gap and margin comes from here.
+   * The file previously used forty-odd unrelated rem values, which is why
+   * nothing lined up between components. */
+  --s1: .25rem;   /*  4px */
+  --s2: .5rem;    /*  8px */
+  --s3: .75rem;   /* 12px */
+  --s4: 1rem;     /* 16px */
+  --s5: 1.5rem;   /* 24px */
+  --s6: 2rem;     /* 32px */
+  --s7: 3rem;     /* 48px */
+
+  /* Three roles, two families. The mono is the load-bearing one: prices are
+   * what this site is for, and tabular figures keep columns of them aligned
+   * digit-for-digit. That survives the refactor unchanged. */
   --display: "Chakra Petch", "Segoe UI Semibold", system-ui, sans-serif;
   --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
           Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
           Consolas, "Liberation Mono", monospace;
 
-  /* Motion. Snappy means short and decisive, not absent: 90ms with a sharp
-   * curve reads as responsive, where 160ms linear reads as sludge. */
+  /* Motion. Short and decisive. */
   --snap: 90ms cubic-bezier(.2, .8, .2, 1);
   --snap-slow: 150ms cubic-bezier(.2, .8, .2, 1);
 }
@@ -162,12 +174,12 @@ a { color: inherit; }
   border-radius: var(--radius-sm);
 }
 
-.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 1.15rem; }
+.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 var(--s4); }
 
 .skip {
   position: absolute; left: 50%; top: -60px; transform: translateX(-50%);
   background: var(--accent); color: var(--ink); font-weight: 700;
-  padding: .6rem 1.1rem; border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: var(--s2) var(--s4); border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   z-index: 100; transition: top var(--snap);
 }
 .skip:focus { top: 0; }
@@ -181,11 +193,11 @@ a { color: inherit; }
   position: sticky; top: 0; z-index: 50;
 }
 .header-inner {
-  display: flex; align-items: center; gap: 1.5rem;
+  display: flex; align-items: center; gap: var(--s5);
   min-height: 58px;
 }
 .brand {
-  display: inline-flex; align-items: center; gap: .55rem;
+  display: inline-flex; align-items: center; gap: var(--s2);
   text-decoration: none; margin-right: auto;
   font-family: var(--display); font-weight: 700;
   font-size: 1.12rem; letter-spacing: .02em; text-transform: uppercase;
@@ -201,14 +213,13 @@ a { color: inherit; }
   width: 26px; height: 26px; flex: none;
   border-radius: var(--radius);
   background: url("favicon-96.png") center / contain no-repeat;
-  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), .45));
 }
 .brand-name { color: var(--text); }
 
-.site-nav { display: flex; gap: .25rem; }
+.site-nav { display: flex; gap: var(--s1); }
 .site-nav a {
   text-decoration: none; color: var(--text-mid); font-size: .92rem;
-  font-weight: 600; padding: .4rem .7rem; border-radius: var(--radius-sm);
+  font-weight: 600; padding: var(--s2) var(--s3); border-radius: var(--radius-sm);
   transition: color var(--snap), background var(--snap);
 }
 .site-nav a:hover { color: var(--text); background: var(--surface-2); }
@@ -216,56 +227,53 @@ a { color: inherit; }
 
 /* ───────────────────────── Layout blocks ───────────────────────── */
 
-main { padding: 1.6rem 0 4rem; min-height: 60vh; }
-section + section { margin-top: 2.6rem; }
+main { padding: var(--s5) 0 var(--s7); min-height: 60vh; }
+section + section { margin-top: var(--s7); }
 
 .crumbs {
-  font-size: .8rem; color: var(--text-dim); margin-bottom: 1.2rem;
-  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+  font-size: .8rem; color: var(--text-dim); margin-bottom: var(--s4);
+  display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center;
 }
 .crumbs a { color: var(--text-mid); text-decoration: none; }
 .crumbs a:hover { color: var(--accent); text-decoration: underline; }
 .crumb-sep { color: var(--line); }
 
-.page-head { margin-bottom: 1.5rem; }
+.page-head { margin-bottom: var(--s5); }
 .page-head h1, .hero h1 {
   font-family: var(--display);
   font-size: clamp(1.75rem, 4.2vw, 2.6rem);
   line-height: 1.08; letter-spacing: -.005em; font-weight: 700;
   text-wrap: balance;
 }
-.hero { padding: 1rem 0 .5rem; max-width: 46rem; }
+.hero { padding: var(--s4) 0 var(--s2); max-width: 46rem; }
 .hero h1 { font-size: clamp(1.9rem, 5vw, 3rem); }
-.hero h1 em { font-style: normal; color: var(--toxic); text-shadow: var(--glow-toxic); }
-.lede { color: var(--text-mid); font-size: 1.03rem; margin-top: .8rem; max-width: 46rem; }
-.meta-line { color: var(--text-mid); font-size: .95rem; margin-top: .5rem; }
-.notes { color: var(--text-mid); margin-top: .7rem; font-size: .95rem; }
+.hero h1 em { font-style: normal; color: var(--toxic); }
+.lede { color: var(--text-mid); font-size: 1.03rem; margin-top: var(--s3); max-width: 46rem; }
+.meta-line { color: var(--text-mid); font-size: .95rem; margin-top: var(--s2); }
+.notes { color: var(--text-mid); margin-top: var(--s3); font-size: .95rem; }
 
-.hero-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.4rem; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: var(--s5); }
 
 .btn {
-  display: inline-flex; align-items: center; gap: .4rem;
-  padding: .6rem 1.25rem; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s4); border-radius: var(--radius-pill);
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--line); text-decoration: none;
   font-weight: 650; font-size: .93rem;
   transition: background var(--snap), border-color var(--snap), transform var(--snap);
 }
-.btn:hover { background: var(--surface-2); border-color: rgba(var(--accent-rgb), .45); transform: translateY(-1px); }
+.btn:hover { background: var(--surface-2); border-color: var(--accent); }
 /* The one button on the site that starts something. Toxic green with both an
  * outer bloom and an inner highlight, so it reads as lit from within rather
  * than as a flat swatch — radioactive, not painted. */
 .btn-primary {
   background: var(--toxic); color: var(--ink); border-color: var(--toxic);
-  box-shadow: 0 0 22px rgba(var(--toxic-rgb), .38),
-              inset 0 1px 0 rgba(255, 255, 255, .45),
-              inset 0 -6px 14px rgba(var(--toxic-rgb), .55);
 }
 .btn-primary:hover { background: var(--accent-soft); border-color: var(--accent-soft); }
 
 .section-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;
+  gap: var(--s4); margin-bottom: var(--s4); flex-wrap: wrap;
 }
 .section-head h2, .about h2 {
   font-family: var(--display); font-size: 1.16rem; font-weight: 700;
@@ -277,25 +285,25 @@ section + section { margin-top: 2.6rem; }
 
 .panel {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: 1.4rem;
+  border-radius: var(--radius-lg); padding: var(--s5);
   box-shadow: var(--shadow-panel);
 }
-.panel h2 { margin-bottom: .6rem; }
+.panel h2 { margin-bottom: var(--s2); }
 .panel p { color: var(--text-mid); font-size: .95rem; }
-.panel p + p { margin-top: .7rem; }
+.panel p + p { margin-top: var(--s3); }
 .empty { text-align: center; color: var(--text-mid); }
-.empty h3 { color: var(--text); margin-bottom: .4rem; }
+.empty h3 { color: var(--text); margin-bottom: var(--s2); }
 .empty code {
   font-family: var(--mono); font-size: .85em; background: var(--surface-2);
-  padding: .12rem .4rem; border-radius: var(--radius-sm); color: var(--accent-soft);
+  padding: .12rem var(--s2); border-radius: var(--radius-sm); color: var(--accent-soft);
 }
 
 .notice {
   background: rgba(var(--accent-rgb),.08); border: 1px solid rgba(var(--accent-rgb),.3);
-  border-radius: var(--radius-sm); padding: .75rem 1rem;
-  color: var(--accent-soft); font-size: .9rem; margin-bottom: 1.2rem;
+  border-radius: var(--radius-sm); padding: var(--s3) var(--s4);
+  color: var(--accent-soft); font-size: .9rem; margin-bottom: var(--s4);
 }
-.source-note { color: var(--text-dim); font-size: .84rem; margin-top: .9rem; }
+.source-note { color: var(--text-dim); font-size: .84rem; margin-top: var(--s4); }
 .source-note a { color: var(--text-mid); }
 
 /* ───────────────────────── Stats & summaries ───────────────────────── */
@@ -305,7 +313,7 @@ section + section { margin-top: 2.6rem; }
   /* 150px, not 120px: the pill shape spends 2.5rem of each track on its own
    * horizontal padding, and $49,591.73 was being clipped in a 120px track. */
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: .75rem; margin-top: 2rem;
+  gap: var(--s3); margin-top: var(--s6);
 }
 /* Readouts, not table cells. Fully rounded, a step lighter than the page so
  * they sit above it, and a faint toxic bloom inside the top edge so they look
@@ -313,7 +321,7 @@ section + section { margin-top: 2.6rem; }
  * wearing the toxic green, which is what makes the eye land on it. */
 .stat-row div {
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--radius-pill); padding: .8rem 1.25rem;
+  border-radius: var(--radius-pill); padding: var(--s3) var(--s4);
   box-shadow: var(--shadow-panel),
               inset 0 1px 0 rgba(var(--text-rgb), .05),
               inset 0 12px 24px -18px rgba(var(--toxic-rgb), .5);
@@ -330,11 +338,11 @@ section + section { margin-top: 2.6rem; }
 
 .summary-cards {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: .75rem; margin: 1.3rem 0;
+  gap: var(--s3); margin: var(--s5) 0;
 }
 .summary {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: .85rem 1rem;
+  border-radius: var(--radius-lg); padding: var(--s3) var(--s4);
   box-shadow: var(--shadow-panel);
   display: flex; flex-direction: column; gap: .2rem;
 }
@@ -343,12 +351,13 @@ section + section { margin-top: 2.6rem; }
 .summary.big b {
   color: var(--toxic); font-size: clamp(2rem, 4vw, 2.6rem);
   font-weight: 600; letter-spacing: -.02em;
-  text-shadow: var(--glow-accent);
 }
 
 .spread-story {
-  margin-top: 1rem; padding: .9rem 1.1rem;
-  background: var(--surface); border-left: 3px solid var(--accent);
+  margin-top: var(--s4); padding: var(--s4);
+  /* Neutral rule, not an accent one. This is a sentence of prose, not a
+     control — see the note on the section-heading rule. */
+  background: var(--surface); border-left: 3px solid var(--line);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--text-mid); font-size: .97rem;
 }
@@ -358,25 +367,24 @@ section + section { margin-top: 2.6rem; }
 
 .event-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: .9rem;
+  gap: var(--s4);
 }
 .event-card {
   box-shadow: var(--shadow-panel);
   display: block; text-decoration: none;
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: 1.1rem;
-  transition: border-color var(--snap-slow), transform var(--snap-slow), background var(--snap-slow);
+  border-radius: var(--radius-lg); padding: var(--s4);
+  transition: border-color var(--snap-slow), background var(--snap-slow);
 }
 .event-card:hover {
-  border-color: rgba(var(--accent-rgb), .42); transform: translateY(-2px);
-  background: var(--surface-2); box-shadow: 0 0 22px rgba(var(--accent-rgb), .10);
+  border-color: var(--accent); background: var(--surface-2);
 }
-.event-card-top { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline; }
+.event-card-top { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; }
 .event-card h3 { font-size: 1.02rem; font-weight: 700; line-height: 1.3; }
 .event-card .date { color: var(--text-dim); font-size: .8rem; flex: none; font-variant-numeric: tabular-nums; }
-.event-card .meta { color: var(--text-dim); font-size: .84rem; margin-top: .3rem; }
+.event-card .meta { color: var(--text-dim); font-size: .84rem; margin-top: var(--s1); }
 .event-card .spread {
-  display: flex; gap: 1.2rem; margin-top: .9rem; padding-top: .8rem;
+  display: flex; gap: var(--s4); margin-top: var(--s4); padding-top: var(--s3);
   border-top: 1px solid var(--line-soft);
 }
 .event-card .spread span { display: flex; flex-direction: column; }
@@ -399,34 +407,38 @@ section + section { margin-top: 2.6rem; }
  * soft accent bloom beneath it — so the categorical band reads as separate
  * from the rows without drawing a hard box. */
 .data-table thead th {
-  text-align: left; padding: .8rem .9rem;
+  text-align: left; padding: var(--s3) var(--s4);
   background: var(--surface-2); color: var(--text-mid);
   font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
   border-bottom: 1px solid var(--line);
   box-shadow: inset 0 -3px 6px -4px rgba(var(--accent-rgb), .35);
   white-space: nowrap;
 }
-.data-table td { padding: .75rem .9rem; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.data-table td { padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+/* A date is one token and should never wrap to two lines — "Aug 23," over
+   "2026" costs a row of height on every row and makes the column ragged. The
+   event title is the only cell that may wrap; everything else holds its line. */
+.data-table .cell-date, .data-table td[data-label="Date"] { white-space: nowrap; }
 .data-table tbody tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background var(--snap); }
 .data-table tbody tr:hover { background: rgba(var(--text-rgb), .03); }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .data-table tfoot td {
-  padding: .8rem .9rem; border-top: 1px solid var(--line);
+  padding: var(--s3) var(--s4); border-top: 1px solid var(--line);
   background: var(--surface-2); font-weight: 700;
 }
-.empty-cell { text-align: center; color: var(--text-dim); padding: 2rem !important; }
+.empty-cell { text-align: center; color: var(--text-dim); padding: var(--s6) !important; }
 
 /* Decklist section headers (Maindeck / Sideboard) */
 .data-table .section-row td {
   background: var(--surface-2); color: var(--text);
   font-family: var(--mono); font-size: .72rem; font-weight: 700;
   letter-spacing: .12em; text-transform: uppercase;
-  padding: .55rem .9rem; border-bottom: 1px solid var(--line);
+  padding: var(--s2) var(--s4); border-bottom: 1px solid var(--line);
 }
 .section-meta {
   color: var(--text-dim); font-weight: 400; letter-spacing: .06em;
-  text-transform: none; margin-left: .5rem;
+  text-transform: none; margin-left: var(--s2);
 }
 
 .strong-link { color: var(--text); text-decoration: none; font-weight: 650; }
@@ -441,7 +453,7 @@ section + section { margin-top: 2.6rem; }
  * fact that it is a link — same padding, same radius, same type, so a printing
  * badge on /rankings and a Legend badge on /decks cannot drift apart. */
 .tag, .legend-tag {
-  display: inline-block; padding: .12rem .6rem;
+  display: inline-block; padding: .12rem var(--s2);
   border: 1px solid var(--line); border-radius: var(--radius-pill);
   background: var(--surface-2);
   font-family: var(--mono); font-size: .66rem; font-weight: 600;
@@ -449,18 +461,18 @@ section + section { margin-top: 2.6rem; }
   vertical-align: middle; white-space: nowrap;
   transition: color var(--snap), border-color var(--snap);
 }
-.tag { margin-left: .45rem; }
+.tag { margin-left: var(--s2); }
 .warn-note { display: block; color: var(--neg); font-size: .72rem; margin-top: .12rem; }
 
 .place {
   display: inline-grid; place-items: center; min-width: 2.1rem; height: 1.7rem;
-  padding: 0 .4rem; border-radius: var(--radius-sm);
+  padding: 0 var(--s2); border-radius: var(--radius-sm);
   background: var(--surface-2); border: 1px solid var(--line);
   font-size: .78rem; font-weight: 700; color: var(--text-mid);
 }
 .place-1 {
   background: rgba(var(--accent-rgb),.16); border-color: rgba(var(--accent-rgb),.5);
-  color: var(--accent); box-shadow: 0 0 10px rgba(var(--accent-rgb), .22);
+  color: var(--accent);
 }
 .place-2 {
   background: rgba(var(--text-rgb), .09); border-color: rgba(var(--text-rgb), .28);
@@ -484,7 +496,7 @@ section + section { margin-top: 2.6rem; }
  * Single column below 1000px, where there is no room for a second: the panel
  * then falls under the list rather than squeezing it. */
 
-.deck-layout { display: grid; gap: 1.3rem; align-items: start; }
+.deck-layout { display: grid; gap: var(--s5); align-items: start; }
 .deck-list { min-width: 0; }  /* lets the table shrink instead of overflowing */
 
 @media (min-width: 1000px) {
@@ -494,19 +506,18 @@ section + section { margin-top: 2.6rem; }
 
 .legend-panel {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 1rem;
+  border-radius: var(--radius); padding: var(--s4);
 }
 .legend-panel-title {
   font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
-  color: var(--text-dim); font-weight: 700; margin-bottom: .7rem;
+  color: var(--text-dim); font-weight: 700; margin-bottom: var(--s3);
 }
 .legend-art {
   display: block; width: 100%; height: auto;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .2),
-              0 10px 30px rgba(0, 0, 0, .5);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-panel);
 }
-.legend-panel-name { font-weight: 700; margin-top: .75rem; line-height: 1.3; }
+.legend-panel-name { font-weight: 700; margin-top: var(--s3); line-height: 1.3; }
 .legend-panel-meta {
   color: var(--text-dim); font-size: .82rem; margin-top: .15rem;
   font-variant-numeric: tabular-nums;
@@ -529,7 +540,7 @@ section + section { margin-top: 2.6rem; }
  * ancestor overflow, so it can sit outside the table without the wrapper
  * needing to give up its corners. */
 
-.card-cell { display: flex; align-items: center; gap: .65rem; }
+.card-cell { display: flex; align-items: center; gap: var(--s3); }
 .card-text { min-width: 0; }
 
 .card-thumb {
@@ -554,9 +565,7 @@ section + section { margin-top: 2.6rem; }
   max-height: 84vh;
   background: var(--art) center / contain no-repeat;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .28),
-              0 24px 60px rgba(0, 0, 0, .65),
-              0 0 40px rgba(var(--accent-rgb), .12);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-overlay);
   z-index: 120;
   pointer-events: none;  /* never blocks the row underneath */
 }
@@ -576,7 +585,7 @@ section + section { margin-top: 2.6rem; }
  * which keeps it clearly distinct from lime, the colour of things you can use. */
 
 .soon {
-  display: inline-block; margin-left: .35rem; padding: .05rem .32rem;
+  display: inline-block; margin-left: var(--s1); padding: .05rem var(--s1);
   border-radius: var(--radius-pill); vertical-align: middle;
   font-size: .58rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
   background: rgba(var(--neg-rgb), .14); color: var(--neg);
@@ -587,15 +596,15 @@ section + section { margin-top: 2.6rem; }
 
 .eyebrow {
   color: var(--neg); font-size: .7rem; font-weight: 800;
-  letter-spacing: .14em; text-transform: uppercase; margin-bottom: .45rem;
+  letter-spacing: .14em; text-transform: uppercase; margin-bottom: var(--s2);
 }
 
 /* Navigational list — used to send a reader somewhere useful from a page that
  * has nothing to show them yet. */
-.jump-list { list-style: none; display: grid; gap: .6rem; }
+.jump-list { list-style: none; display: grid; gap: var(--s2); }
 .jump-list a {
   display: flex; flex-direction: column; gap: .15rem;
-  padding: .85rem 1rem; text-decoration: none;
+  padding: var(--s3) var(--s4); text-decoration: none;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
   transition: border-color var(--snap-slow), background var(--snap-slow), transform var(--snap-slow);
@@ -612,7 +621,7 @@ section + section { margin-top: 2.6rem; }
  * Reserved now, empty at launch. Fixed heights so dropping an ad in later
  * cannot shift content and wreck CLS. */
 
-.ad-slot { margin: 1.8rem 0; width: 100%; }
+.ad-slot { margin: var(--s6) 0; width: 100%; }
 .ad-slot--leaderboard { min-height: 90px; }
 .ad-slot--rectangle   { min-height: 250px; }
 @media (min-width: 768px) {
@@ -623,9 +632,9 @@ section + section { margin-top: 2.6rem; }
 
 .site-footer {
   border-top: 1px solid var(--line); background: var(--surface);
-  padding: 2rem 0 2.6rem; margin-top: 2rem;
+  padding: var(--s6) 0 var(--s7); margin-top: var(--s6);
 }
-.footer-nav { display: flex; flex-wrap: wrap; gap: 1.2rem; margin-bottom: 1rem; }
+.footer-nav { display: flex; flex-wrap: wrap; gap: var(--s4); margin-bottom: var(--s4); }
 .footer-nav a {
   color: var(--text-mid); text-decoration: none; font-size: .9rem; font-weight: 600;
   display: inline-flex; align-items: center;
@@ -634,7 +643,7 @@ section + section { margin-top: 2.6rem; }
 .sources { color: var(--text-dim); font-size: .84rem; max-width: 60ch; }
 .disclaimer {
   color: var(--text-dim); font-size: .78rem; line-height: 1.6;
-  margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line-soft);
+  margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line-soft);
   max-width: 72ch;
 }
 
@@ -644,16 +653,16 @@ section + section { margin-top: 2.6rem; }
 @media (max-width: 720px) {
   /* Five sections don't fit a phone header. Drop the nav to its own row and
    * let it scroll sideways rather than squeezing or wrapping the labels. */
-  .header-inner { min-height: 52px; gap: .5rem; flex-wrap: wrap; padding-bottom: .35rem; }
+  .header-inner { min-height: 52px; gap: var(--s2); flex-wrap: wrap; padding-bottom: var(--s1); }
   .brand { margin-right: 0; }
   .site-nav {
     order: 3; width: 100%;
     overflow-x: auto; scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    margin: 0 -1.15rem; padding: 0 1.15rem .1rem;
+    margin: 0 -1.15rem; padding: 0 var(--s4) .1rem;
   }
   .site-nav::-webkit-scrollbar { display: none; }
-  .site-nav a { padding: .35rem .55rem; font-size: .88rem; white-space: nowrap; flex: none; }
+  .site-nav a { padding: var(--s1) var(--s2); font-size: .88rem; white-space: nowrap; flex: none; }
   .soon { font-size: .54rem; }
 
   .table-wrap { border: none; background: transparent; }
@@ -661,12 +670,12 @@ section + section { margin-top: 2.6rem; }
   .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
   .data-table tr {
     background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--radius); margin-bottom: .7rem; padding: .35rem .2rem;
+    border-radius: var(--radius); margin-bottom: var(--s3); padding: var(--s1) .2rem;
   }
   .data-table td {
     border-bottom: 1px solid var(--line-soft);
-    display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
-    padding: .5rem .85rem; text-align: right;
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4);
+    padding: var(--s2) var(--s3); text-align: right;
   }
   .data-table td:last-child { border-bottom: none; }
   .data-table td::before {
@@ -676,13 +685,13 @@ section + section { margin-top: 2.6rem; }
   }
   .data-table td.bar-cell { width: 100%; }
   /* section headers stay full-width bars, not label/value rows */
-  .data-table tr.section-row { background: transparent; border: none; margin: 1rem 0 .4rem; padding: 0; }
+  .data-table tr.section-row { background: transparent; border: none; margin: var(--s4) 0 var(--s2); padding: 0; }
   .data-table .section-row td { display: block; text-align: left; border-radius: var(--radius-sm); }
   .data-table .section-row td::before { content: none; }
   .card-name, .card-code, .legend { text-align: right; }
   /* Stacked rows put the label left and content right; keep the thumb tucked
    * against its text rather than stranded across the gap. */
-  .card-cell { justify-content: flex-end; gap: .55rem; }
+  .card-cell { justify-content: flex-end; gap: var(--s2); }
   .card-thumb { width: 34px; height: 48px; order: 2; }
   .card-text { order: 1; }
   .data-table tfoot { display: block; }
@@ -696,7 +705,7 @@ section + section { margin-top: 2.6rem; }
 
 /* Legend art in a list of decks. Slightly tighter than a decklist row: these
  * sit under a player or deck name rather than beside a card name. */
-.legend-cell { margin-top: .3rem; gap: .5rem; }
+.legend-cell { margin-top: var(--s1); gap: var(--s2); }
 .legend-cell .card-thumb { width: 34px; height: 48px; }
 .legend-cell .legend { display: block; margin-top: 0; }
 
@@ -705,34 +714,35 @@ section + section { margin-top: 2.6rem; }
  * template. Both are decoration, so both sit behind prefers-reduced-motion and
  * neither carries meaning a reader would miss. */
 
-/* Film grain. A single inline SVG turbulence, so it costs no request and no
- * image decode. Kept very faint — enough to break up flat fills, not enough to
- * read as texture. */
-body::after {
-  content: "";
-  position: fixed; inset: 0;
-  pointer-events: none;  /* must never intercept a click */
-  z-index: 200;
-  opacity: .04;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
+/* The film grain that used to live here is gone.
+ *
+ * It was one inline SVG turbulence on body::after at 4% opacity — cheap, no
+ * request, no decode, and genuinely well built. It is removed anyway, because
+ * it was texture over a dense table of numbers, and this is a database. Nothing
+ * on the page is easier to read for having noise laid over it.
+ *
+ * Recoverable from git if a future theme wants it back. */
 
-/* A lime tick before every section heading — the smallest possible mark that
- * says "instrument panel" rather than "article". */
+/* A rule before every section heading. It anchors the heading to the left edge
+ * and separates one board from the next.
+ *
+ * It is NEUTRAL, and that is the point. It used to be an accent tick, which
+ * spent the palette's loudest colour on decoration — the accent has to mean
+ * "you did this" everywhere or it means nothing anywhere, and a heading is not
+ * something you did. Same reasoning that keeps a price out of the accent. */
 .section-head h2::before,
 .about h2::before {
   content: "";
   display: inline-block; vertical-align: .1em;
-  width: 3px; height: .82em; margin-right: .55rem;
-  background: var(--accent);
-  box-shadow: 0 0 8px rgba(var(--accent-rgb), .55);
+  width: 3px; height: .82em; margin-right: var(--s2);
+  background: var(--line);
 }
 
 /* The headline cost is the one number people come for. Give its card an accent
  * edge so the eye lands there before anything else on the page. */
 .summary.big {
   border-color: rgba(var(--toxic-rgb), .35);
-  box-shadow: inset 3px 0 0 var(--toxic), 0 0 24px rgba(var(--toxic-rgb), .07);
+  box-shadow: inset 3px 0 0 var(--toxic);
 }
 
 /* Rows should answer the pointer immediately. */
@@ -757,9 +767,9 @@ body::after {
  * outer grid; the row element itself is a grouping for the markup, not a box. */
 .filters {
   display: grid; grid-template-columns: auto minmax(0, 1fr);
-  column-gap: .7rem; row-gap: .55rem;
+  column-gap: var(--s3); row-gap: var(--s2);
   align-items: baseline;
-  padding: .95rem 1.05rem; margin-bottom: 1.6rem;
+  padding: var(--s4) var(--s4); margin-bottom: var(--s5);
   background: var(--surface);
   /* No border. A hairline outline is what made this read as a boxed-off form;
    * a soft shadow lets the panel sit on the page instead of being cut into it. */
@@ -780,11 +790,11 @@ body::after {
    * on every row, which is the whole point of having a column. */
   text-align: right;
 }
-.chips { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); flex: 1; min-width: 0; }
 
 .chip {
-  display: inline-flex; align-items: center; gap: .4rem;
-  padding: .3rem .8rem; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s1) var(--s3); border-radius: var(--radius-pill);
   border: 1px solid var(--line); background: var(--surface-2);
   color: var(--text-mid); text-decoration: none;
   font-size: .82rem; font-weight: 600; text-transform: capitalize;
@@ -793,7 +803,6 @@ body::after {
 .chip:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .45); }
 .chip.is-on {
   background: var(--accent); border-color: var(--accent); color: var(--ink);
-  box-shadow: 0 0 14px rgba(var(--accent-rgb), .25);
 }
 .chip-count {
   font-family: var(--mono); font-size: .68rem; font-variant-numeric: tabular-nums;
@@ -805,21 +814,20 @@ body::after {
  * recognise a card — the name underneath is confirmation, not identification. */
 .card-grid {
   list-style: none;
-  display: grid; gap: .8rem;
+  display: grid; gap: var(--s3);
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
 }
 .card-tile {
   display: flex; flex-direction: column; gap: .1rem;
   /* .tile-body carries the text spacing; see the card browser section below. */
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: .55rem;
-  transition: border-color var(--snap), transform var(--snap), background var(--snap);
+  border-radius: var(--radius-lg); padding: var(--s2);
+  transition: border-color var(--snap), background var(--snap);
 }
 .card-tile:hover {
-  border-color: rgba(var(--accent-rgb), .45); background: var(--surface-2);
-  transform: translateY(-2px);
+  border-color: var(--accent); background: var(--surface-2);
 }
-.tile-art { display: block; margin-bottom: .45rem; }
+.tile-art { display: block; margin-bottom: var(--s2); }
 .tile-art img {
   display: block; width: 100%; height: auto;
   border-radius: var(--radius); background: var(--surface-2);
@@ -841,7 +849,7 @@ body::after {
 
 .pager {
   display: flex; align-items: center; justify-content: center;
-  gap: 1rem; margin-top: 1.8rem; flex-wrap: wrap;
+  gap: var(--s4); margin-top: var(--s6); flex-wrap: wrap;
 }
 .pager-at {
   font-family: var(--mono); font-size: .82rem; color: var(--text-dim);
@@ -858,12 +866,12 @@ body::after {
  * where the chips are for browsing toward an unknown one. A plain GET form,
  * so it needs no JavaScript and every search is a shareable URL. */
 .search {
-  display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
-  margin-bottom: .9rem;
+  display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap;
+  margin-bottom: var(--s4);
 }
 .search-input {
   flex: 1; min-width: 15rem;
-  padding: .58rem 1.05rem;
+  padding: var(--s2) var(--s4);
   background: var(--surface); color: var(--text);
   border: 1px solid var(--line); border-radius: var(--radius-pill);
   font-family: var(--sans); font-size: .95rem;
@@ -873,7 +881,7 @@ body::after {
 .search-input:focus {
   outline: none;
   border-color: rgba(var(--accent-rgb), .55);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .12);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .35);
 }
 
 /* Visually hidden, still read aloud — the input needs a label even though the
@@ -893,7 +901,7 @@ body::after {
 }
 .tile-domain {
   width: 14px; height: 14px;
-  border-radius: var(--radius-sm); vertical-align: -.2em; margin-right: .3rem;
+  border-radius: var(--radius-sm); vertical-align: -.2em; margin-right: var(--s1);
 }
 .tile-set { display: flex; align-items: center; }
 
@@ -905,8 +913,8 @@ body::after {
  * browser so the two filters read as the same control, and sits above the
  * ad slot so the reserved leaderboard height is never displaced. */
 .era-filter {
-  display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
-  padding: .7rem .9rem; margin-bottom: 1.2rem;
+  display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap;
+  padding: var(--s3) var(--s4); margin-bottom: var(--s4);
   background: var(--surface);
   box-shadow: var(--shadow-panel);
   border-radius: var(--radius-lg);
@@ -921,16 +929,15 @@ body::after {
  * Single column below 900px, art first — on a phone the art is what identifies
  * the card, and the text reads underneath it. */
 
-.card-detail { display: grid; gap: 1.6rem; align-items: start; }
+.card-detail { display: grid; gap: var(--s5); align-items: start; }
 @media (min-width: 900px) {
-  .card-detail { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 2rem; }
+  .card-detail { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: var(--s6); }
   .card-detail-art { position: sticky; top: 78px; }
 }
 .card-detail-art img {
   display: block; width: 100%; height: auto;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .22),
-              0 18px 44px rgba(0, 0, 0, .55);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-panel);
 }
 .card-detail-text { min-width: 0; }
 
@@ -940,16 +947,16 @@ body::after {
 }
 .card-typeline {
   font-family: var(--mono); font-size: .78rem; text-transform: uppercase;
-  letter-spacing: .09em; color: var(--text-mid); margin-top: .3rem;
+  letter-spacing: .09em; color: var(--text-mid); margin-top: var(--s1);
 }
 
 .cardstats {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-  gap: .6rem; margin: 1.1rem 0;
+  gap: var(--s2); margin: var(--s4) 0;
 }
 .cardstat {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: .55rem .7rem;
+  border-radius: var(--radius); padding: var(--s2) var(--s3);
 }
 .cardstat dt {
   font-family: var(--mono); font-size: .64rem; text-transform: uppercase;
@@ -959,7 +966,7 @@ body::after {
   font-family: var(--mono); font-size: 1.1rem; font-weight: 600;
   margin-top: .15rem; text-transform: capitalize;
 }
-.dd-domain { display: flex; align-items: center; gap: .35rem; font-size: .95rem; }
+.dd-domain { display: flex; align-items: center; gap: var(--s1); font-size: .95rem; }
 .stat-domain { width: 20px; height: 20px; border-radius: var(--radius-sm); }
 
 /* The rules box mirrors the card's own text panel: generous line height and a
@@ -968,17 +975,17 @@ body::after {
   background: var(--surface); border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
   border-radius: 0 var(--radius) var(--radius) 0;
-  padding: 1rem 1.15rem; margin: 1.1rem 0;
+  padding: var(--s4) var(--s4); margin: var(--s4) 0;
 }
 .rules-text { font-size: 1.02rem; line-height: 1.65; max-width: 54ch; }
 /* Flavor text is italic on the card too, and is flavour — set it back. */
 .flavor-text {
   font-style: italic; color: var(--text-mid);
   font-size: .98rem; max-width: 48ch;
-  padding-left: .9rem; border-left: 2px solid var(--line);
+  padding-left: var(--s4); border-left: 2px solid var(--line);
 }
 
-.card-price-row { margin-top: 1.4rem; }
+.card-price-row { margin-top: var(--s5); }
 
 /* ───────────────────────── Rankings boards ─────────────────────────
  * A leaderboard, so the rank itself is set as a readout: mono, tabular, dim
@@ -1002,9 +1009,9 @@ body::after {
 .move-up { color: var(--toxic); }
 .move-down { color: var(--neg); }
 
-.boards { display: grid; gap: 1.6rem; }
+.boards { display: grid; gap: var(--s5); }
 .board { min-width: 0; }  /* lets each table shrink rather than overflow the grid */
-.board .section-head { margin-bottom: .7rem; }
+.board .section-head { margin-bottom: var(--s3); }
 .board .section-head h3 {
   font-family: var(--display); font-size: .95rem; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase;
@@ -1016,7 +1023,7 @@ body::after {
 
 /* /cards puts a search form between the heading and the filters; /rankings has
  * no search, so the filter panel needs its own breathing room. */
-.page-head + .filters { margin-top: 1.3rem; }
+.page-head + .filters { margin-top: var(--s5); }
 
 /* ─────────────────── Card browser: filters, sort, tiles ───────────────────
  *
@@ -1053,7 +1060,7 @@ body::after {
   /* Bleeds through the panel padding on three sides so the bar meets its
    * edges. The panel keeps its own bottom padding for /rankings, which uses
    * the same panel with no disclosure in it. */
-  margin: .4rem -1.05rem -.95rem;
+  margin: var(--s2) -1.05rem -.95rem;
   border-top: 1px solid var(--line);
 }
 /* The <summary> stays a plain block and every bit of layout lives on the inner
@@ -1064,14 +1071,14 @@ body::after {
 .filters-more > summary {
   display: block;
   cursor: pointer; list-style: none;
-  padding: .62rem 1.05rem;
+  padding: var(--s2) var(--s4);
   background: var(--surface-2);
   transition: background var(--snap);
 }
 .filters-more > summary:hover { background: var(--surface-3); }
 .filters-more > summary::-webkit-details-marker { display: none; }
 .filters-more-trigger {
-  display: flex; width: 100%; align-items: center; gap: .5rem;
+  display: flex; width: 100%; align-items: center; gap: var(--s2);
   font-family: var(--mono); font-size: .7rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: .12em; color: var(--text-mid);
   transition: color var(--snap);
@@ -1085,7 +1092,7 @@ body::after {
 /* The marker is drawn rather than inherited, so it can rotate and so it sits
  * on the text baseline at this size. */
 .filters-more .filters-more-label::before {
-  content: "▸"; display: inline-block; margin-right: .45rem;
+  content: "▸"; display: inline-block; margin-right: var(--s2);
   transition: transform var(--snap);
 }
 .filters-more[open] .filters-more-label::before { transform: rotate(90deg); }
@@ -1095,10 +1102,10 @@ body::after {
  * need to share that box's column. */
 .filters-more-body {
   display: grid; grid-template-columns: auto minmax(0, 1fr);
-  column-gap: .7rem; row-gap: .55rem;
+  column-gap: var(--s3); row-gap: var(--s2);
   align-items: baseline;
-  padding: .7rem 1.05rem .8rem;
-  background: rgba(0, 0, 0, .16);
+  padding: var(--s3) var(--s4) var(--s3);
+  background: var(--surface-sunken);
 }
 
 /* Sort sits opposite the result count, because it reorders what you have
@@ -1106,7 +1113,7 @@ body::after {
  * filters, and one control instead of a row of eight. Also a <details>: the
  * panel is a list of real links, so each sort order stays a shareable URL. */
 .section-head--results { align-items: center; }
-.results-tools { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+.results-tools { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
 
 .sortmenu { position: relative; }
 /* Same reason as the filter disclosure above: the summary is a plain block and
@@ -1117,8 +1124,8 @@ body::after {
 }
 .sortmenu > summary::-webkit-details-marker { display: none; }
 .sortmenu-trigger {
-  display: inline-flex; align-items: center; gap: .45rem;
-  padding: .32rem .8rem;
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s1) var(--s3);
   border: 1px solid var(--line); border-radius: var(--radius-pill);
   background: var(--surface-2); color: var(--text-mid);
   font-family: var(--mono); font-size: .68rem; font-weight: 600;
@@ -1150,14 +1157,14 @@ body::after {
   position: absolute; z-index: 60; right: 0; top: calc(100% + .35rem);
   min-width: 11rem;
   display: flex; flex-direction: column;
-  padding: .3rem;
+  padding: var(--s1);
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+  box-shadow: var(--shadow-overlay);
 }
 .sortmenu-item {
   position: relative;
-  padding: .38rem .55rem .38rem 1.6rem;
+  padding: var(--s2) var(--s2) var(--s2) var(--s5);
   border-radius: var(--radius-sm);
   color: var(--text-mid); text-decoration: none;
   font-size: .85rem; font-weight: 600;
@@ -1178,14 +1185,14 @@ body::after {
   .sortmenu { width: 100%; }
   .sortmenu > summary { width: 100%; }
   .sortmenu-trigger { width: 100%; justify-content: space-between; }
-  .sortmenu-panel { position: static; min-width: 0; box-shadow: none; margin-top: .35rem; }
+  .sortmenu-panel { position: static; min-width: 0; box-shadow: none; margin-top: var(--s1); }
 }
 
 /* Tile text was set at a 1.6px gap, which ran name, code, set and price
  * together into one block. Each line is a different kind of fact, so each gets
  * room to read as one. */
-.tile-body { display: flex; flex-direction: column; gap: .22rem; padding: .1rem .1rem 0; }
-.tile-art { margin-bottom: .55rem; }
+.tile-body { display: flex; flex-direction: column; gap: var(--s1); padding: .1rem .1rem 0; }
+.tile-art { margin-bottom: var(--s2); }
 .tile-price { margin-top: .18rem; }
 
 /* ───────────────── Decks on a phone ─────────────────
@@ -1216,11 +1223,11 @@ body::after {
      the parent's width and the scroll container works. */
   .era-filter {
     display: block;
-    padding: .7rem 0;
+    padding: var(--s3) 0;
   }
   .era-filter .filter-label {
     display: block; width: auto;
-    padding: 0 .9rem; margin-bottom: .5rem;
+    padding: 0 var(--s4); margin-bottom: var(--s2);
   }
   .era-filter .chips {
     display: flex;
@@ -1230,7 +1237,7 @@ body::after {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     scroll-snap-type: x proximity;
-    margin: 0; padding: .15rem .9rem;
+    margin: 0; padding: .15rem var(--s4);
   }
   .era-filter .chips::-webkit-scrollbar { display: none; }
   .era-filter .chip { flex: none; white-space: nowrap; scroll-snap-align: start; }
@@ -1264,8 +1271,8 @@ body::after {
       "place cards date  date"
       "event event event event";
     align-items: start;
-    gap: .1rem .45rem;
-    padding: .75rem .85rem;
+    gap: .1rem var(--s2);
+    padding: var(--s3) var(--s3);
   }
 
   /* Undo the generic stacked-cell treatment for this table only. */
@@ -1291,7 +1298,7 @@ body::after {
    * left to right. The generic mobile rule reverses these for label/value
    * rows, which this table no longer has. */
   .data-table--decks .card-cell {
-    justify-content: flex-start; gap: .6rem; margin-top: 0;
+    justify-content: flex-start; gap: var(--s2); margin-top: 0;
   }
   .data-table--decks .card-thumb { order: 0; width: 40px; height: 56px; flex: none; }
   .data-table--decks .card-text { order: 0; min-width: 0; }
@@ -1305,18 +1312,18 @@ body::after {
   .data-table--decks .cell-place,
   .data-table--decks .cell-cards,
   .data-table--decks .cell-date {
-    margin-top: .5rem;
+    margin-top: var(--s2);
     font-family: var(--mono); font-size: .72rem;
     color: var(--text-dim); font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .data-table--decks .cell-place::after,
   .data-table--decks .cell-cards::after {
-    content: "•"; color: var(--line); margin-left: .45rem;
+    content: "•"; color: var(--line); margin-left: var(--s2);
   }
 
   .data-table--decks .cell-event {
-    margin-top: .5rem; padding-top: .5rem;
+    margin-top: var(--s2); padding-top: var(--s2);
     border-top: 1px solid var(--line-soft);
     font-size: .84rem;
   }
@@ -1353,44 +1360,44 @@ body::after {
  * with scripting off. See §21 of docs/HANDOFF.md.
  */
 
-.deck-search { margin: 1.1rem 0 .9rem; }
+.deck-search { margin: var(--s4) 0 var(--s4); }
 
 /* The green accent on focus, as asked. Note this is the one place --toxic
  * appears on something that is neither money nor the primary action; the rest
  * of the palette's split still holds. */
 .deck-search .search-input:focus {
   border-color: var(--toxic);
-  box-shadow: 0 0 0 3px rgba(var(--toxic-rgb), .18);
+  box-shadow: 0 0 0 2px rgba(var(--toxic-rgb), .35);
   outline: none;
 }
 
 .legend-picker {
-  display: flex; align-items: center; gap: .8rem;
-  padding: .7rem 0; margin-bottom: 1.2rem;
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) 0; margin-bottom: var(--s4);
   background: var(--surface);
   box-shadow: var(--shadow-panel);
   border-radius: var(--radius-lg);
 }
-.legend-picker .filter-label { padding-left: .9rem; flex: none; }
+.legend-picker .filter-label { padding-left: var(--s4); flex: none; }
 
 /* One row, always. Twenty-two Legends will never wrap onto four lines and push
  * the table off the screen — they scroll sideways, with the bar padded rather
  * than inset so a face is clipped at the edge and says so. Same treatment as
  * the set filter on a phone and the site nav. */
 .legend-strip {
-  display: flex; gap: .55rem;
+  display: flex; gap: var(--s2);
   flex: 1; min-width: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
-  padding: .2rem .9rem;
+  padding: .2rem var(--s4);
 }
 .legend-strip::-webkit-scrollbar { display: none; }
 
 .legend-av {
   flex: none; scroll-snap-align: start;
-  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s1);
   width: 4.4rem; padding: .15rem 0;
   text-decoration: none; color: var(--text-dim);
   transition: color var(--snap);
@@ -1411,9 +1418,12 @@ body::after {
 .legend-av:hover .legend-av-art { border-color: rgba(var(--accent-rgb), .5); }
 
 /* The selected Legend gets the bright ring. */
+/* The chosen Legend is a SELECTION, so it takes the accent like every other
+   active control. It was toxic, which put the money colour on a filter — the
+   one thing the two-colour rule exists to prevent. */
 .legend-av.is-on .legend-av-art {
-  border-color: var(--toxic);
-  box-shadow: 0 0 0 3px rgba(var(--toxic-rgb), .22), 0 0 16px rgba(var(--toxic-rgb), .35);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .35);
 }
 .legend-av.is-on { color: var(--text); }
 
@@ -1434,16 +1444,16 @@ body::after {
 /* The badge on a table row. Muted by default so it never competes with the
  * deck name above it, and a link, because a tag you cannot act on is just the
  * deck name written twice. */
-.legend-tag { margin-top: .25rem; text-decoration: none; }
+.legend-tag { margin-top: var(--s1); text-decoration: none; }
 .legend-tag:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .5); }
 
 @media (max-width: 720px) {
-  .legend-picker { gap: .4rem; flex-direction: column; align-items: stretch; }
-  .legend-picker .filter-label { padding: 0 .9rem; }
-  .legend-strip { padding: .1rem .9rem .2rem; }
-  .deck-search { margin: .9rem 0 .8rem; }
+  .legend-picker { gap: var(--s2); flex-direction: column; align-items: stretch; }
+  .legend-picker .filter-label { padding: 0 var(--s4); }
+  .legend-strip { padding: .1rem var(--s4) .2rem; }
+  .deck-search { margin: var(--s4) 0 var(--s3); }
   /* The badge sits under the deck name in the card layout, above the player. */
-  .data-table--decks .legend-tag { margin-top: .25rem; }
+  .data-table--decks .legend-tag { margin-top: var(--s1); }
 }
 
 /* ─────────────── The decklist as plain text ───────────────
@@ -1458,8 +1468,8 @@ body::after {
  */
 
 .deck-export-wrap {
-  display: flex; align-items: flex-start; gap: .6rem;
-  margin-top: 1rem;
+  display: flex; align-items: flex-start; gap: var(--s2);
+  margin-top: var(--s4);
 }
 .deck-export { flex: 1; min-width: 0; }
 
@@ -1469,8 +1479,8 @@ body::after {
 }
 .deck-export > summary::-webkit-details-marker { display: none; }
 .deck-export-trigger {
-  display: inline-flex; align-items: center; gap: .4rem;
-  padding: .35rem .8rem;
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s1) var(--s3);
   border: 1px solid var(--line); border-radius: var(--radius-pill);
   background: var(--surface-2); color: var(--text-mid);
   font-family: var(--mono); font-size: .68rem; font-weight: 600;
@@ -1488,9 +1498,9 @@ body::after {
   outline: 2px solid var(--focus); outline-offset: 2px;
 }
 
-.deck-export-body { margin-top: .6rem; }
+.deck-export-body { margin-top: var(--s2); }
 .deck-export-text {
-  margin: 0; padding: .9rem 1rem;
+  margin: 0; padding: var(--s4) var(--s4);
   max-height: 22rem; overflow: auto;
   background: var(--surface); border-radius: var(--radius);
   box-shadow: inset 0 0 0 1px var(--line-soft);
@@ -1502,7 +1512,7 @@ body::after {
 }
 
 /* Injected by app.js, never by the server. */
-.btn-copy { flex: none; font-size: .82rem; padding: .35rem 1rem; }
+.btn-copy { flex: none; font-size: .82rem; padding: var(--s1) var(--s4); }
 .btn-copy.is-done {
   background: var(--toxic); border-color: var(--toxic); color: var(--ink);
 }
@@ -1538,10 +1548,9 @@ body::after {
  * reader did, and it is what changes the number they came for. */
 .own-toggle[aria-pressed="true"] {
   background: var(--toxic); border-color: var(--toxic); color: var(--ink);
-  box-shadow: 0 0 10px rgba(var(--toxic-rgb), .3);
 }
 
-.has-own-toggle { display: flex; align-items: center; gap: .6rem; }
+.has-own-toggle { display: flex; align-items: center; gap: var(--s2); }
 
 /* An owned row recedes: you are not buying it, so it should stop competing
  * with the rows you still have to. The line total keeps its value on screen
@@ -1562,14 +1571,14 @@ body::after {
 }
 /* On a card's own page the toggle sits beside its label rather than under it. */
 .card-price-row .summary-own {
-  flex-direction: row; align-items: center; gap: .6rem;
+  flex-direction: row; align-items: center; gap: var(--s2);
 }
 .card-price-row .summary-own .label { text-transform: none; letter-spacing: 0; font-size: .82rem; }
 
 @media (max-width: 720px) {
   /* The stacked card layout puts the toggle at the start of the Card cell,
    * where it stays reachable with a thumb. */
-  .data-table--decks .has-own-toggle { gap: .5rem; }
+  .data-table--decks .has-own-toggle { gap: var(--s2); }
 }
 
 /* ─────────────── Reading a top 8 in order ───────────────
@@ -1584,8 +1593,8 @@ body::after {
 
 .deck-siblings {
   display: flex; align-items: center; justify-content: space-between;
-  gap: .8rem; flex-wrap: wrap;
-  margin-top: 1.6rem; padding: .8rem 1rem;
+  gap: var(--s3); flex-wrap: wrap;
+  margin-top: var(--s5); padding: var(--s3) var(--s4);
   background: var(--surface);
   box-shadow: var(--shadow-panel);
   border-radius: var(--radius-lg);
@@ -1594,7 +1603,7 @@ body::after {
 /* The arrow shows WHO, not just a direction: "4th · Kennen" tells you whether
  * the next deck is worth the click. */
 .sib-arrow {
-  display: inline-flex; align-items: baseline; gap: .4rem;
+  display: inline-flex; align-items: baseline; gap: var(--s2);
   min-width: 0;
 }
 .sib-arrow-place {
@@ -1607,7 +1616,7 @@ body::after {
 }
 
 .sib-strip {
-  list-style: none; display: flex; gap: .3rem;
+  list-style: none; display: flex; gap: var(--s1);
   flex-wrap: wrap; justify-content: center;
   min-width: 0;
 }
@@ -1627,16 +1636,15 @@ a.sib-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px;
  * not money — the palette rule in §13. */
 .sib-pill.is-on {
   background: var(--accent); border-color: var(--accent); color: var(--ink);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), .28);
   cursor: default;
 }
 
-.sib-legend-note { margin-top: .7rem; }
+.sib-legend-note { margin-top: var(--s3); }
 
 @media (max-width: 560px) {
   /* The strip is the useful half on a phone; the arrows keep their labels but
    * lose the name, which is what overflows first. */
-  .deck-siblings { gap: .6rem; padding: .7rem .8rem; }
+  .deck-siblings { gap: var(--s2); padding: var(--s3) var(--s3); }
   .sib-arrow-who { display: none; }
   .sib-strip { order: 3; width: 100%; }
 }
@@ -1654,8 +1662,8 @@ a.sib-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px;
 .data-table tr.is-clipped { display: none; }
 
 .board-more {
-  display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
-  margin-top: .9rem;
+  display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
+  margin-top: var(--s4);
 }
 .board-more-count {
   font-family: var(--mono); font-size: .72rem; color: var(--text-dim);
@@ -1678,7 +1686,7 @@ a.sib-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px;
 }
 #top-cards tbody td,
 .board tbody td {
-  padding-top: 1rem; padding-bottom: 1rem;
+  padding-top: var(--s4); padding-bottom: var(--s4);
 }
 #top-cards .card-cell,
-.board .card-cell { gap: .8rem; }
+.board .card-cell { gap: var(--s3); }

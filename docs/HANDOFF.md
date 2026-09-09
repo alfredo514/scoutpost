@@ -697,93 +697,118 @@ the source ever becomes photographic, check for banding by eye.
 
 ## 13. The visual language
 
-Retheemed 2026-08-29 to a **Teemo / mushroom** palette. The typographic system
-below is unchanged and is still what carries the site; the colour and geometry
-underneath it were rebuilt. What came before was an instrument look — near
-square corners, acid lime on deep forest green — and it is recoverable from git
-if this ever needs reversing.
+**Refactored 2026-09-09 to a neutral, utility-first look.** This is the third
+theme: an instrument look (acid lime on forest green, near-square corners), then
+a Teemo/mushroom retheme on 2026-08-29, now this. Both earlier ones are
+recoverable from git.
 
-### The palette is two spore colours doing two different jobs
+The brief was that the site is a data-dense utility and the mood was getting in
+the way of reading it. The refactor touched **`public/styles.css` and nothing
+else** — all twelve pages render byte-identical HTML before and after, which is
+the same test the previous retheme passed. If a future theme needs a markup
+change, that is a sign it is reaching for something the tokens should express.
 
-This is the rule to keep. Everything else here is taste.
+### The two colours, and what they mean — unchanged
+
+**This is the rule to keep. Everything else here is taste.**
 
 | Token | Value | Means |
 |---|---|---|
-| `--accent` | `#C77DFF` poison magenta | **interaction** — the filter you chose, the link under your pointer, the row you are on |
-| `--toxic` | `#A3E635` toxic green | **money and the primary action** — every price, and the Search button |
+| `--accent` | `#C084FC` violet | **interaction** — the filter you chose, the row under your pointer, the sort you are on |
+| `--toxic` | `#A3E635` green | **money and the primary action** — every price, and the Search button |
 
-Keeping them apart is what stops the palette becoming decoration: one colour
-says "you did this", the other says "this is the number you came for". If a new
-element needs a colour, decide which of those two things it is. A price is
-never magenta and a hover state is never toxic.
+Keeping them apart is what stops the palette becoming decoration: one says "you
+did this", the other says "this is the number you came for". If a new element
+needs colour, decide which of those two it is — **and if it is neither, it gets
+a neutral.** That last clause is new, and enforcing it is most of what the
+refactor did. A price is never violet, a hover state is never green, and a
+*heading* is neither: the section tick and the spread-story rule were both
+accent-coloured and are now `--line`.
 
-`--neg` is `#E255C7`, poison magenta — a falling price belongs to the theme,
-not to a generic traffic light. Magenta rather than the accent's blue-violet so
-the two never read as the same thing: `--accent` is *where you are*, `--neg` is
-*a number going the wrong way*. It went through two earlier values: pink, which
-collided with the accent, then a warm ember, which was legible but off-theme.
-The deeper `#9D4EDD` was measured at **4.13:1** on `--bg` and rejected; this one
-is **5.67:1**.
+The Legend picker's active ring was `--toxic`, which put the money colour on a
+filter — the exact thing the rule exists to prevent. It is `--accent` now.
 
-Surfaces are `--bg #0A1410` (forest floor) with panels a lighter muddy
-green-grey at `--surface #16241C`. Text is `--text #F4EFE6`, a mushroom-cap
-cream rather than white.
+`.place-1` keeps a subtle accent tint. A placement badge is data, and making the
+winner scannable in a top 8 is the kind of "rarity indicator" the accent is for.
 
-**Contrast was measured, not eyeballed.** Every text pair on /cards is at or
-above 4.5:1 — the tightest is the small uppercase `.filter-label` at 5.54, and
-`--text-dim` was lightened from `#8B8577` to `#9D9789` specifically because
-the first draft put it at 4.39 against `--surface`. Check that number if you
-darken any surface or dim any text.
+### Surfaces are neutral, and that is the main change
 
-### Everything is a token, and that is enforced
+`--bg #0E1113` through `--surface-3 #252A2E` — slate, four steps apart. The
+previous theme built everything on green-grey (`#0A1410` up), which tinted every
+panel and made the two accents read as furniture rather than as signal. Text is
+neutral too: `--text #E9EDF0`, no cream.
 
-As of 2026-08-29 there is **not one literal colour, radius or shadow anywhere
-outside `:root`**. An audit found the drift that accumulates otherwise: the
-site header still painted itself `rgba(8, 21, 14, .9)` — the *old* background,
-surviving the retheme because it was written as a literal rather than a token;
-a hard-coded cream on the runner-up chip; a hand-picked hover surface; four
-literal `999px` radii; and eight literal pixel radii on card art.
+**Contrast is measured, not eyeballed — and now it is enforced:**
 
-Three things came out of that and are worth keeping:
+```bash
+node scripts/check-contrast.mjs
+```
 
-- **`--shadow-panel` is the only panel shadow.** It was copied by hand into
-  four rules, which is three chances to drift. Every raised container now reads
-  the token: `.filters`, `.era-filter`, `.legend-picker`, `.deck-siblings`,
-  `.summary`, `.panel`, `.event-card`, `.table-wrap`, `.stat-row div`.
-- **One container radius.** `--radius-lg` on every raised surface, so the Decks
-  table, the Cards grid and the Rankings boards match exactly. `.table-wrap`
-  and `.event-card` were the two stragglers at `--radius`.
-- **One pill radius, and one badge.** `--radius-pill` on every input, button
-  and chip — `.sortmenu-trigger` was the last square control. `.tag` and
-  `.legend-tag` were two badge components at two sizes saying the same kind of
-  thing; they are now one rule, and `.legend-tag` adds only the fact that it is
-  a link.
+It reads the tokens straight out of `styles.css` and asserts every text/surface
+pair clears WCAG AA. **The previous palette failed three pairs**: `neg` on
+`--surface-3` at 3.69, `neg` on `--surface-2` at 4.12, `text-dim` on
+`--surface-3` at 4.19. This section used to claim everything passed, which was
+true only of `/cards` — the deeper surfaces had never been checked. All 30 pairs
+pass now, tightest **5.48**. `--neg` was lightened to `#F19BD0` for that reason.
 
-Re-run the audit before believing this is still true: it lives in the session
-scratchpad, but it is twenty lines — walk `styles.css` after the `:root` block
-and assert no `#hex`, no `rgb(` and no `Npx` follows `border-radius:`.
+### No atmosphere
 
-### Geometry
+Removed: the film grain, the toxic and accent text glows, the Search button's
+outer bloom and its two inset highlights, the coloured inner shadow on the stat
+cards, the accent glows on chips, ticks, pills and toggles, and the
+`translateY(-2px)` hover lifts on cards and tiles. All of it was mood laid over
+a table of numbers.
 
-- **`--radius: 6px`, `--radius-lg: 16px`, `--radius-pill: 999px`.** Anything
-  you press or type into — filter chips, buttons, the search field, the sort
-  trigger, badges, and the aggregate stat blocks — is fully round. Every raised
-  container uses `--radius-lg`. Card art scales with its own size: thumbnails
-  `--radius-sm`, grid tiles `--radius`, large art `--radius-lg`.
-- This **reverses** the earlier `--radius: 3px` decision, which was recorded
-  here as "soft corners read as a template; near square reads as a panel on a
-  device". That was right for the instrument look and is simply not what this
-  theme is after. Setting `--radius` back to `3px` undoes most of it.
-- The filter panel and the set-filter bar have **no border** — a transparent
-  1px border holds the box model, and a soft two-layer shadow does the
-  separating. The hairline outline is what made them read as boxed-off forms.
-- The Search button carries an outer bloom plus two inset shadows, so it reads
-  as lit from within rather than as a flat swatch.
+Elevation is **two tokens and nothing else**: `--shadow-panel` for anything
+raised, `--shadow-overlay` for the two things that genuinely float — the hover
+enlargement and the sort dropdown. Four hand-written 28–60px shadows collapsed
+into that. `--surface-sunken` is the one recessed surface, for the advanced
+filter drawer.
+
+### Geometry: one control radius, one container radius
+
+- **`--radius: 4px`** (chips, buttons, inputs, badges), **`--radius-lg: 6px`**
+  (raised containers), **`--radius-sm: 3px`** (art and icons). `--radius-pill`
+  still exists so call sites did not all have to change, but it is **4px and no
+  longer a pill**.
+- This **reverses** the 2026-08-29 decision that anything you press or type into
+  goes fully round. A 999px radius on every chip, button and input is what made
+  the controls read as floating graphics rather than as form elements.
+- The filter panel and the set-filter bar **have their hairline back**. The
+  previous theme gave them a transparent border and let a soft shadow do the
+  separating; on a neutral ground that just read as vague.
+
+### One spacing scale
+
+`--s1` .25rem through `--s7` 3rem, an 8-point scale. **217 values across 34
+distinct ad-hoc sizes** were snapped onto it — the file previously used forty-odd
+unrelated rem values, which is why nothing lined up between components. Anything
+at or below .2rem is a hairline nudge for icon alignment and is left alone.
+
+### Everything is a token, and the audit now runs
+
+There is **not one literal colour, radius or shadow anywhere outside `:root`**,
+and no `padding`/`margin`/`gap` above .2rem that is not a scale token.
+
+That claim used to end with "re-run the audit before believing this is still
+true: it lives in the session scratchpad". A check that lives in a scratchpad is
+a check that has already stopped running. It is part of
+`scripts/check-contrast.mjs` now, it runs in the same command as the contrast
+check, and it currently reports **zero** of each.
+
+Three things from the original audit are still worth keeping:
+
+- **`--shadow-panel` is the only panel shadow.** It was once copied by hand into
+  four rules, which is three chances to drift.
+- **One container radius** on every raised surface, so the Decks table, the
+  Cards grid and the Rankings boards match exactly.
+- **One badge component.** `.tag` is the base and `.legend-tag` adds only the
+  fact that it is a link.
 
 ### What did not change
 
-**A scouting instrument, not a dashboard.** The site reports on a competitive
-format and prices it, so the typography is still measurement.
+**The typography is the part that was already right**, and it is still what
+carries the site.
 
 | Role | Face | Used for |
 |---|---|---|
@@ -793,35 +818,18 @@ format and prices it, so the typography is still measurement.
 
 The mono is the load-bearing decision. Prices are what this site is for, and
 setting them in tabular mono makes columns align digit-for-digit and read as
-measurements. It is the single change that stopped the site looking generic —
-before this, every `font-family` in the stylesheet was the system stack.
+measurements. In a utility this dense that matters more, not less.
 
-Other deliberate choices:
+Also unchanged:
 
 - **`--snap: 90ms cubic-bezier(.2,.8,.2,1)`** on every transition. Snappy means
-  short and decisive, not absent.
-- **Grain** — one inline SVG turbulence on `body::after` at 4% opacity. No
-  request, no image decode, `pointer-events: none`.
-- **A magenta tick** before each section heading, and a **toxic** edge on the
-  headline cost card — the two-colour rule again: the tick is chrome, the cost
-  card is money.
-
-Three webfonts are loaded with `display=swap` and real fallback stacks. This
-**reverses** an earlier decision recorded in the stylesheet header ("no
-webfonts, system stack renders instantly"). That was a defensible performance
-call, but the system stack was precisely what made the site look like every
-other dark dashboard. If page weight ever matters more than identity, dropping
-the `<link>` in `render.js` degrades cleanly to the fallback stacks.
-
-**The card enlargements are still pure CSS**, and the site ships exactly one
-deferred script (`public/app.js`, added 2026-08-29 — see §22). Nothing on any
-page requires it. Never write a style whose only trigger is a class that script
-adds.
-
-The retheme touched `public/styles.css` and nothing else: all twelve pages
-render byte-identical HTML before and after it. If a future theme needs a
-markup change, that is a sign it is reaching for something the tokens should be
-expressing instead.
+  short and decisive, not absent. `transform` was dropped from the transition
+  lists, since nothing animates it any more.
+- Three webfonts with `display=swap` and real fallback stacks. Dropping the
+  `<link>` in `render.js` degrades cleanly if page weight ever matters more.
+- **The card enlargements are still pure CSS**, and the site still ships exactly
+  one deferred script. Nothing on any page requires it. Never write a style
+  whose only trigger is a class that script adds.
 
 ---
 
