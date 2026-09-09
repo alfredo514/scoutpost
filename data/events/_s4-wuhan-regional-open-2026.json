@@ -1,5 +1,5 @@
 {
-  "_note": "STAGED, NOT IMPORTED — the leading underscore in the filename makes the importer skip this file (§6). Five of the seven supplied decks fail the §16 arithmetic and the eighth deck has no list at all, so importing it would publish build costs that are quietly too low. See the check-event output in the session that created this. Missing: 2nd and 3rd place rune pools, several maindeck cards across 1st/2nd/5th/6th, 3rd place sideboard, and the whole of 8th place. Rename without the underscore once the gaps are filled and check-event.mjs passes 8/8.",
+  "_note": "STAGED, NOT IMPORTED — the leading underscore makes the importer skip this file (§6). Second pass: all eight rune pools are now correct at 12, 3rd place gained its sideboard, and 8th place gained a list (its Legend was corrected from Master Yi to Diana). All 125 distinct card names resolve against the live catalogue, so the transcription is sound. But five of the eight decks are still SHORT in the maindeck against §16: the Units+Spells block must total 40 (39 maindeck plus the champion, which these lists place inside Units). Missing: #1 Konaha 1 card, #2 一凡家老王 5, #5 东东卡牌妙妙屋 1, #6 NGF.Miner. 2, #8 酷猫.MGC秀吉 4. Only #3, #4 and #7 pass. NOTE ON 8th: its list shares 17 identical lines with 7th place and differs on only 7, every difference being a card 7th runs that 8th does not (Vex Apathetic, Hard Bargain, Sprite Fountain — six cards) plus two added; the net is exactly the 4-card shortfall. It may be a genuinely similar list, but it reads like an incomplete copy of 7th and should be confirmed against the source before import. source_url is still empty and §6 wants one. Rename without the underscore once check-event.mjs passes 8/8.",
   "id": "s4-wuhan-regional-open-2026",
   "name": "S4 Wuhan Regional Open",
   "date": "2026-08-29",
@@ -104,11 +104,11 @@
         },
         {
           "name": "Calm Rune",
-          "qty": 6
+          "qty": 5
         },
         {
           "name": "Chaos Rune",
-          "qty": 6
+          "qty": 7
         }
       ],
       "sideboard": [
@@ -242,6 +242,14 @@
         {
           "name": "Zaun Warrens",
           "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
         }
       ],
       "sideboard": [
@@ -351,9 +359,46 @@
         {
           "name": "Zaun Warrens",
           "qty": 1
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 9
+        },
+        {
+          "name": "Order Rune",
+          "qty": 3
         }
       ],
-      "sideboard": []
+      "sideboard": [
+        {
+          "name": "Abandon",
+          "qty": 1
+        },
+        {
+          "name": "Blood Money",
+          "qty": 2
+        },
+        {
+          "name": "Deathgrip",
+          "qty": 1
+        },
+        {
+          "name": "Decree of Unity",
+          "qty": 2
+        },
+        {
+          "name": "Hard Bargain",
+          "qty": 1
+        },
+        {
+          "name": "Salvage",
+          "qty": 2
+        },
+        {
+          "name": "Invert Timelines",
+          "qty": 1
+        }
+      ]
     },
     {
       "placement": 4,
@@ -511,11 +556,11 @@
         },
         {
           "name": "Adaptatron",
-          "qty": 1
+          "qty": 2
         },
         {
           "name": "Ferrous Forerunner",
-          "qty": 1
+          "qty": 2
         },
         {
           "name": "Akali, Deadly Weapon",
@@ -612,11 +657,19 @@
         },
         {
           "name": "Kennen, Keeper of Balance",
-          "qty": 1
+          "qty": 2
         },
         {
           "name": "Vi, Peacekeeper",
-          "qty": 1
+          "qty": 2
+        },
+        {
+          "name": "Pit Rookie",
+          "qty": 3
+        },
+        {
+          "name": "Sea Monkey",
+          "qty": 2
         },
         {
           "name": "Eye of the Herald",
@@ -859,6 +912,111 @@
         },
         {
           "name": "Turn to Dust",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "placement": 8,
+      "player": "酷猫.MGC秀吉",
+      "legend": "Diana, Scorn of the Moon",
+      "cards": [
+        {
+          "name": "Diana, Scorn of the Moon",
+          "qty": 1
+        },
+        {
+          "name": "Ravenbloom Student",
+          "qty": 3
+        },
+        {
+          "name": "Tideturner",
+          "qty": 3
+        },
+        {
+          "name": "Hwei, Brooding Painter",
+          "qty": 3
+        },
+        {
+          "name": "Patched Porobot",
+          "qty": 3
+        },
+        {
+          "name": "Fizz, Trickster",
+          "qty": 2
+        },
+        {
+          "name": "Diana, Lunari",
+          "qty": 1
+        },
+        {
+          "name": "Stupefy",
+          "qty": 3
+        },
+        {
+          "name": "Stacked Deck",
+          "qty": 3
+        },
+        {
+          "name": "Ride the Wind",
+          "qty": 3
+        },
+        {
+          "name": "Moonfall",
+          "qty": 3
+        },
+        {
+          "name": "Acceptable Losses",
+          "qty": 3
+        },
+        {
+          "name": "Gust",
+          "qty": 2
+        },
+        {
+          "name": "Star-Crossed",
+          "qty": 2
+        },
+        {
+          "name": "Switcheroo",
+          "qty": 1
+        },
+        {
+          "name": "Flash",
+          "qty": 1
+        },
+        {
+          "name": "Forbidding Waste",
+          "qty": 1
+        },
+        {
+          "name": "Abandoned Hall",
+          "qty": 1
+        },
+        {
+          "name": "Targon's Peak",
+          "qty": 1
+        },
+        {
+          "name": "Mind Rune",
+          "qty": 6
+        },
+        {
+          "name": "Chaos Rune",
+          "qty": 6
+        }
+      ],
+      "sideboard": [
+        {
+          "name": "Temporal Breach",
+          "qty": 2
+        },
+        {
+          "name": "Pickpocket",
+          "qty": 2
+        },
+        {
+          "name": "Rebuke",
           "qty": 1
         }
       ]
