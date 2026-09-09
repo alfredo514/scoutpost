@@ -20,15 +20,18 @@ diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27
 | | |
 |---|---|
 | Live | https://softsauce.co/scoutpost |
-| Data | 1,419 cards · 8 events · 64 decks · prices daily at 21:15 UTC |
+| Data | 1,419 cards · 9 events · 72 decks · prices daily at 21:15 UTC |
 | Deploy | **manual** — `npx wrangler deploy`. Pushing changes nothing (§10) |
 | JavaScript | one deferred file, and nothing may *require* it (§22, §23) |
-| Cost | ~50–200 rows read per query after §26; it was ~40,000 (§25) |
+| Cost | ~200–2,300 rows read per PAGE after §28; /decks alone was 180,000 |
+| Migrations | `db/migrations/`, numbered. Apply BEFORE deploying code that reads them |
 
-### The five things most likely to bite you
+### The six things most likely to bite you
 
-1. **Prices are columns on `cards`, costs are columns on `decks`** — both
-   precomputed nightly. Do not reintroduce a price join. §26.
+1. **Nothing that changes once a night belongs on a page's query.** Six values
+   are precomputed and read back: card prices, deck costs, `sets.card_count`,
+   `decks.legend_card_id`, `cards.is_metal`, and the `card_facets` table. Every
+   one of them replaced a query that recomputed it per request. §26, §28.
 2. **Promos reuse their original set's collector number**, so they are matched
    by product id, never by number. Their sets carry a NULL release date on
    purpose. §24.
@@ -37,11 +40,16 @@ diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27
 4. **Verify against the live URL**, never against wrangler's output — it lies
    about asset uploads. §10.
 5. **Riot article dates are PUBLICATION dates**, not event dates. §5, §6.
+6. **Importing an event is not finished until the costs are recomputed.** They
+   are no longer computed at read time, so a new event reads as $0 until the
+   nightly job. §6.
 
 ### What is still open
 
 - `/box-ev` is a placeholder in the nav (§9).
-- Price history charts are waiting on snapshot depth, not code (§9).
+- Price history charts are waiting on snapshot depth, not code (§9). There are
+  ~13 days of `price_snapshots` now and the movers board is live, so this is
+  closer than it was.
 - A collection page — collection tracking ships but is reachable from nowhere.
 - `robots.txt` on the NAS still needs the sitemap line; submit to Search
   Console (§9).
@@ -235,10 +243,24 @@ A data operation. **No template is ever edited.**
 
 ```bash
 cp data/events/_TEMPLATE.json data/events/<slug>.json   # fill it in
+node scripts/check-event.mjs data/events/<slug>.json    # §16 — shape, before names
 node scripts/import-decks.mjs
 npx wrangler d1 execute scoutpost --remote --file=build/import.sql -y
+node -e "import('./ingest/src/deck-cost-sql.js').then(m=>require('fs').writeFileSync('build/recompute.sql',m.DECK_COST_SQL+';\n'))"
+npx wrangler d1 execute scoutpost --remote --file=build/recompute.sql -y
 npx wrangler deploy      # only if site code changed
 ```
+
+**The recompute step is not optional, and it is new.** Deck costs and the
+Legend art id are columns written by the nightly job (§26, §28), not computed
+when the page renders. An imported event therefore lands with `total_cost` and
+`legend_card_id` both NULL, and the site shows it with **no cost and no Legend
+art** until 02:15 UTC. Verified the hard way on RQ Singapore: 8 decks imported,
+0 with a cost, until the recompute ran. The statement above is the same one the
+price job runs, imported rather than copied, so the two cannot drift.
+
+Then check `priced_cards = distinct_cards` on every new deck — that is the
+"unpriced count is 0" check below, expressed as SQL.
 
 Files starting with `_` are skipped by the importer — useful for staging an
 event whose date isn't confirmed yet.
@@ -270,6 +292,30 @@ full top 8 reliably. **It is an automated read, so verify before trusting:**
 - Check unpriced counts are 0.
 - Corroborate the winner/runner-up against independent coverage.
 
+**Three traps RQ Singapore threw, 2026-09-09 — expect all of them again:**
+
+- **The first eight decks on the page are not the top 8.** That article opened
+  with a long "Best-of Decks" section, and those entries carry their own
+  `Overall Ranking` values — including a #8, a #2 and a #1, from players who
+  also made the top 8. Reading top-down gives you a plausible, wrong eight.
+  Locate the block by the FINAL descending `#8 … #1` run, as §16 says.
+- **The article can contradict its own data.** Its prose said the top 8 held
+  "five Kennen, two Master Yi, Wuju Bladesman, and one Akali" — eight decks,
+  no Fiora. The listings' own `Legend Rank: #N/total` fields said Kennen #1–#4
+  of 218 (four decks), Master Yi #1–#2 of 124, Akali #1/72, Fiora #1/54. That
+  totals eight and it is what the decklists show. **`Legend Rank` is the
+  cross-check**: the ranks for one Legend enumerate that Legend's decks in the
+  top 8, so they tell you the composition independently of the prose.
+- **The date is not on the results article at all.** Singapore's said only
+  "this past weekend" over a `9/9/2026` stamp, and a `WebFetch` read of it
+  returned "September 7-8, 2026" — a Monday and a Tuesday. The real dates were
+  in Riot's *preview* article, "All Eyes on Singapore" (2026-08-23):
+  September 4–6. **There is a preview article for every RQ**, titled
+  "All Eyes on <city>", and it carries the dates and the venue. Use it.
+
+Record the event under the **final** day, when the top 8 standings were set —
+Barcelona and Singapore both follow this.
+
 Attendance figures **disagree between sources** every time (Riot's day-one
 number vs Liquipedia's entrant count). Use Riot's, note the discrepancy in the
 event file's `_note`.
@@ -288,9 +334,10 @@ event file's `_note`.
 | RQ Utrecht | 2026-06-14 | 8 | Both finalists brought the two *cheapest* decks; priciest deck came 8th |
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 — the only event so far where that happened |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn beat a runner-up Kennen costing ~3× as much |
+| RQ Singapore | 2026-09-06 | 8 | Gorica's Akali over a Kennen-heavy top 8. Its article hid three traps — §6 |
 
 **1,419 cards** (1,180 catalogue + 239 promos, §24), ~1,340 daily prices,
-**8 events, 64 decks**, 100% price coverage on all decks. ~75 cards are
+**9 events, 72 decks**, 100% price coverage on all decks. ~75 cards are
 unpriced: promos TCGplayer lists without a market price, plus the original 22
 special-numbering printings.
 
@@ -406,10 +453,15 @@ Smaller open items:
 - `robots.txt` lives at the domain root on the **NAS**, not in this repo. It
   still needs `Sitemap: https://softsauce.co/scoutpost/sitemap.xml` added.
 - Submit that sitemap in Google Search Console.
-- 77 of 1,419 cards are unpriced — 55 promos TCGplayer lists without a
-  market price (§24), plus the 22 original — promo printings with special numbering
+- 75 of 1,419 cards are unpriced — promos TCGplayer lists without a market
+  price (§24), plus the 22 original promo printings with special numbering
   (`SP3/006`, `R01`, `T01`) that have no TCGplayer counterpart. Documented
   limitation, not a bug. This was 58 until the Signature fix; see §5.
+- `/cards/<id>` pages are **not in the sitemap** — 1,419 indexable pages a
+  crawler is never pointed at. A real SEO gain against a per-render cost; a
+  deliberate call nobody has made yet.
+- The ingest Worker's `/health` endpoint is unauthenticated and exposes recent
+  run history. Low stakes, but a decision rather than an oversight.
 - Decks show `main_cost` / `side_cost` separately; the headline cost includes
   the sideboard. The user was offered maindeck-only and kept the combined total.
 
@@ -449,8 +501,9 @@ needs only that one secret.
 | Change | Deploy? |
 |---|---|
 | Anything in `src/` or `public/` | **Yes** |
-| A new event | No — the importer writes to D1 |
+| A new event | No — but it DOES need the cost recompute, §6 |
 | New prices | No — the cron writes to D1 |
+| A new derived column or table | No, but apply the migration BEFORE deploying code that reads it — §28 |
 
 ### Prices
 
@@ -1769,9 +1822,20 @@ still walked 1,419 cards, joined 1,349 prices, and sorted the result.
 |---|---|---|
 | `topCards` | 4,034 | **50** |
 | `listEvents` | 4,170 | **79** |
-| `listDecks` | 4,155 | **192** |
+| `listDecks` | 4,155 | ~~192~~ — **see below** |
 | `getEventDecks` | ~4,100 | **9** |
 | `marketStats` | 2,767 | 1,419 |
+
+> **The `listDecks` figure in this table was wrong, and it cost two outages.**
+> That query did not read 192 rows; it read about **97,700**, because
+> `EVENT_ERA` and `LEGEND_ART` are correlated subqueries evaluated once per
+> row, and both reached into other tables. Nobody re-measured it, and the
+> number was quoted back approvingly for a day while /decks was spending the
+> daily free tier in 28 page views. It is **895** now. §28 has the whole story.
+>
+> The lesson is not about this query. It is that **a measured number goes
+> stale**, and a table of them in a document reads as fact long after it stops
+> being one. Re-measure before you cite.
 
 ### The three-step history is the lesson
 
@@ -1854,3 +1918,155 @@ every page.
    stays high for a day after a spike and cannot confirm a change made minutes
    ago. Do not read it as "the fix did not work".
 4. **Measure against local**, now that local exists.
+5. **`d1 info` LAGS, badly.** On 2026-09-09 it reported `read_queries_24h`
+   as *exactly* 3,259 eight hours apart, while the site was plainly serving
+   traffic. It is useless for "did the last fifteen minutes go wrong". Use
+   `wrangler tail` for what is happening now, and measure single queries with
+   `--json` and read `rows_read`.
+
+---
+
+## 28. Nothing that changes once a night belongs on the read path
+
+**2026-09-08 and 2026-09-09.** §26 said the pattern out loud — store the value,
+do not recompute it per request — and then the site ran out of its daily read
+budget twice more anyway. Both times the cause was the same shape §26 had
+already named, sitting somewhere nobody had measured.
+
+This section is the general rule, and the four places it was violated.
+
+### The rule
+
+> **Does this value change between page views? If not, it does not belong in a
+> query the page runs.**
+
+Six things now answer "no" and are written by the nightly jobs:
+
+| Value | Written by | Replaced a query costing |
+|---|---|---|
+| `cards.market_price` etc. | price job | ~40,000 (§25/§26) |
+| `decks.total_cost` etc. | price job | ~4,170 (§26) |
+| `sets.card_count` | catalog job | **~90,000 per view** |
+| `decks.legend_card_id` | price job | ~7,700 per view |
+| `cards.is_metal` | catalog job | 1,419 per view |
+| `card_facets` (table) | catalog job | 12,788 per view |
+| `sets.priced_count` / `total_value` / `top_card_id` | price job | 7,127 per view |
+
+### The one that caused the outages: a COUNT inside a correlated subquery
+
+`EVENT_ERA` picks the set that was legal when an event was played, breaking
+ties on which set is larger. That tiebreak was written as
+
+```sql
+ORDER BY s.release_date DESC,
+         (SELECT COUNT(*) FROM cards WHERE set_id = s.id) DESC
+```
+
+`EVENT_ERA` is *itself* a correlated subquery, so that COUNT ran **once per
+row** of whatever query embedded it — re-counting every card in every candidate
+set, for every deck and every event:
+
+```
+CORRELATED SCALAR SUBQUERY 3
+  SCAN s                                            <- every set
+  SEARCH cards USING COVERING INDEX idx_cards_set   <- every card in it
+```
+
+~1,419 rows per row. `deckEraCounts` 90,000, `listDecks` 90,000 more, one
+`/decks` view **~180,000 rows — 28 page views to the entire 5M daily tier.**
+
+It is now `s.card_count`, a column. **The general form: an expression inside
+`EVENT_ERA` or `LEGEND_ART` is paid for once per row of the embedding query.
+Nothing that touches another table belongs in either.**
+
+### A full index can be worse than no index
+
+`cards.is_metal` was added because Metal cards can only be identified by their
+product name, and `name LIKE '%(Metal)%'` starts with a wildcard — no index can
+*ever* serve it. That part was right. The index on it was not:
+
+```
+SEARCH c USING INDEX idx_cards_metal (is_metal=?)   <- 95% of rows
+USE TEMP B-TREE FOR ORDER BY
+```
+
+The planner chose it for `topCards` too, matched 1,351 rows, and sorted them
+rather than walking `idx_cards_price` and stopping at 50. **67 rows → 2,679.**
+The fix is a **partial** index, `WHERE is_metal = 1`, which covers only the
+selective side. Migration 004.
+
+### An ORDER BY that wraps a column in an expression throws the index away
+
+`UNPRICED_LAST` was `CASE WHEN market_price IS NULL THEN 1 ELSE 0 END` as the
+first sort key. Because that is an expression, `idx_cards_price` could not serve
+the sort and the default `/cards` listing became a scan plus a temp B-tree:
+**2,838 rows → 101.** On `DESC` the CASE did nothing at all — SQLite already
+orders NULL below every value. Only ASC needed saying, and `NULLS LAST` says it
+without hiding the column.
+
+### The median: ask what the query would read if it were perfect
+
+Computing a median with `ROW_NUMBER() OVER (ORDER BY price)` plus
+`COUNT(*) OVER ()` numbers every row, stamps the total on every row, and keeps
+two. Both window functions must see everything before emitting anything, so it
+materialised and sorted the whole slice: **8,056 rows to read one value.**
+Walking the already-sorted index to the middle reads about the offset:
+
+```sql
+ORDER BY market_price LIMIT 2 - (n % 2) OFFSET (n - 1) / 2
+```
+
+`n` comes from the aggregate query that had already counted those rows.
+**8,056 → 676.**
+
+`scripts/verify-median.mjs` diffs old against new across the whole option space
+— every set × printing × metal combination, every type and rarity, empty
+slices, and synthetic counts of 1–7, 20, 21 for the even/odd rule. **254
+combinations, 0 mismatches.** It reads the local sqlite file directly, so it
+costs nothing and can afford to be exhaustive. Keep it; it is what makes that
+query safe to touch again.
+
+### Where it ended up
+
+| Page | Before | After |
+|---|---|---|
+| `/decks` | ~180,000 | **~2,100** |
+| `/rankings` | ~30,900 | **~2,300** |
+| `/cards` | ~18,400 | **~1,600** |
+| `/` | ~1,600 | **~200** |
+
+`rows_read_24h` went 20,340,673 → ~1,027,000 in a day, and rows-per-query
+~6,240 → ~610.
+
+### What this cost, and the honest caveat
+
+Five derived columns, one table, one shared module (`shared/card-sql.js`) and
+four migrations, in two days. Every one is correct and rebuildable from
+`cards`, `deck_cards` and `price_snapshots`, which remain the only sources of
+truth — but every one is also **another thing the nightly job has to keep
+true**, and when a derived value goes stale the symptom is a plausible wrong
+number, which is the failure mode §5 exists for.
+
+So: after any change to the ingest jobs, check the next cron actually
+maintained them. `sum(sets.card_count)` should equal the card count,
+`count(decks.legend_card_id)` should equal the deck count, `card_facets` should
+hold ~37 rows, and `deck_cost_snapshots` for today should match `decks`.
+
+**Stop here.** There is no remaining query whose cost is out of proportion to
+the work it does. Everything past this point is optimising a page nobody is
+waiting on.
+
+### A local/production divergence worth knowing
+
+`scripts/seed-local.mjs` writes a `sets` row for **every TCGCSV group**, while
+`writeCatalog` derives set rows from the cards it wrote — so production only
+ever holds sets that *have* cards. Local therefore has card-less sets that
+production does not, including unreleased ones (Legacy, released 2027-01-29).
+
+That divergence is why `setEras` gained `release_date <= date('now')` and
+`card_count > 0`: locally, the newest "era" was a set five months in the future
+with no cards, and both `/decks` and `/events` opened on an empty table. The
+guards are correct and worth keeping — a card-less group *can* reach production
+if it ever gains a single card — but the empty-page symptom was local-only, and
+it was reported as probably-live before anyone checked. Check production before
+claiming a local symptom is live.
