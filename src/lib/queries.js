@@ -47,18 +47,29 @@
  *
  * A Riftbound deck has exactly one Legend and players recognise a deck by it on
  * sight, so a list of decks reads far faster with the art than with the name
- * alone. Correlated subqueries rather than a join: the surrounding queries
- * aggregate over deck_cards with GROUP BY, and joining a second copy of that
- * table would multiply the rows those aggregates are summing.
+ * alone.
  *
- * `idx_deck_cards_deck` serves the lookup, and there are only ever 8 decks on
- * an event page.
+ * **Reached by primary key, through `decks.legend_card_id`.** This used to walk
+ * `deck_cards` for the deck and join `cards` on every row to find which of them
+ * was the Legend — about 30 index entries plus 30 card lookups, twice (once per
+ * rendition), for every deck row. Roughly 120 rows read per deck, ~7,700 for a
+ * single listDecks, and it grew with both the deck count and the size of a
+ * decklist. Now it is two primary-key lookups: about 2.
+ *
+ * `legend_card_id` is derived data, written by the nightly recompute in
+ * ingest/src/deck-cost-sql.js. `deck_cards` remains the source of truth.
+ *
+ * An older comment here insisted these had to be correlated subqueries rather
+ * than a join, because the surrounding queries aggregated over deck_cards with
+ * GROUP BY and a second copy of that table would have multiplied what the
+ * aggregates were summing. That was true and is not any more — §26 moved those
+ * costs onto the deck row and neither caller has a GROUP BY left. Kept as
+ * subqueries only because it makes this a drop-in string; a LEFT JOIN would now
+ * be equally correct.
  */
 const LEGEND_ART = `
-  (SELECT cl.image_thumb_url FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
-    WHERE dcl.deck_id = d.id AND cl.card_type = 'Legend' LIMIT 1) AS legend_thumb_url,
-  (SELECT cl.image_large_url FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
-    WHERE dcl.deck_id = d.id AND cl.card_type = 'Legend' LIMIT 1) AS legend_large_url`;
+  (SELECT cl.image_thumb_url FROM cards cl WHERE cl.id = d.legend_card_id) AS legend_thumb_url,
+  (SELECT cl.image_large_url FROM cards cl WHERE cl.id = d.legend_card_id) AS legend_large_url`;
 
 export async function latestPriceDate(db) {
   const row = await db.prepare('SELECT MAX(date) AS d FROM price_snapshots').first();
@@ -285,22 +296,19 @@ export async function legendFacets(db, { era = '' } = {}) {
   const { results } = await db
     .prepare(
       `WITH per_deck AS (
-         SELECT d.legend, d.id AS deck_id, ${EVENT_ERA} AS era
+         SELECT d.legend, d.id AS deck_id, d.legend_card_id, ${EVENT_ERA} AS era
            FROM decks d
            JOIN events e ON e.id = d.event_id
        ),
        scoped AS (SELECT * FROM per_deck ${having}),
        ranked AS (
-         SELECT legend, deck_id,
+         SELECT legend, deck_id, legend_card_id,
                 ROW_NUMBER() OVER (PARTITION BY legend ORDER BY deck_id) AS rn,
                 COUNT(*) OVER (PARTITION BY legend) AS n
            FROM scoped
        )
        SELECT r.legend,
-              (SELECT cl.image_thumb_url
-                 FROM deck_cards dcl JOIN cards cl ON cl.id = dcl.card_id
-                WHERE dcl.deck_id = r.deck_id AND cl.card_type = 'Legend'
-                LIMIT 1) AS thumb,
+              (SELECT cl.image_thumb_url FROM cards cl WHERE cl.id = r.legend_card_id) AS thumb,
               r.n
          FROM ranked r
         WHERE r.rn = 1 AND r.legend IS NOT NULL AND r.legend <> ''

@@ -1,5 +1,5 @@
 /**
- * The nightly deck-cost recompute, as one statement.
+ * The nightly deck-row recompute, as one statement.
  *
  * It lives in its own module because TWO callers run it and they must never
  * drift:
@@ -39,4 +39,9 @@ export const DECK_COST_SQL = `UPDATE decks SET
                   FROM deck_cards dc WHERE dc.deck_id = decks.id),
   distinct_cards = (SELECT COUNT(*) FROM deck_cards dc WHERE dc.deck_id = decks.id),
   priced_cards   = (SELECT COUNT(*) FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
-                     WHERE dc.deck_id = decks.id AND c.market_price IS NOT NULL)`;
+                     WHERE dc.deck_id = decks.id AND c.market_price IS NOT NULL),
+  -- Not a cost, but it belongs in this pass: it is the same once-nightly walk
+  -- of the same deck's cards, and doing it here costs nothing extra while
+  -- saving every /decks and /events view from repeating it per row.
+  legend_card_id = (SELECT dc.card_id FROM deck_cards dc JOIN cards c ON c.id = dc.card_id
+                     WHERE dc.deck_id = decks.id AND c.card_type = 'Legend' LIMIT 1)`;

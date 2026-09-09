@@ -109,6 +109,11 @@ CREATE TABLE IF NOT EXISTS decks (
   placement   INTEGER NOT NULL CHECK (placement BETWEEN 1 AND 8),
   player_name TEXT,
   legend      TEXT,                        -- the deck's legend / champion identity
+  -- The Legend's CARD, so a list of decks can show its art without going back
+  -- through deck_cards for every row. Derived from deck_cards by the nightly
+  -- recompute; see the note on LEGEND_ART in src/lib/queries.js for what it
+  -- cost to look this up per row instead.
+  legend_card_id TEXT REFERENCES cards(id),
   notes       TEXT,
   -- Precomputed nightly, immediately after the card prices they depend on.
   -- This reverses §8's "never stored" rule; §26 explains why it is still safe.
