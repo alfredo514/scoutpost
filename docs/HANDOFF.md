@@ -1,6 +1,6 @@
 # Scoutpost — session handoff
 
-Started 2026-08-27, current as of **2026-09-08**. Read this first in a new
+Started 2026-08-27, current as of **2026-09-09**. Read this first in a new
 session; it records the things that are expensive to rediscover.
 
 ---
@@ -20,7 +20,7 @@ diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27
 | | |
 |---|---|
 | Live | https://softsauce.co/scoutpost |
-| Data | 1,419 cards · 9 events · 72 decks · prices daily at 21:15 UTC |
+| Data | 1,419 cards · 10 events · 80 decks · prices daily at 21:15 UTC |
 | Deploy | **manual** — `npx wrangler deploy`. Pushing changes nothing (§10) |
 | JavaScript | one deferred file, and nothing may *require* it (§22, §23) |
 | Cost | ~200–2,300 rows read per PAGE after §28; /decks alone was 180,000 |
@@ -28,10 +28,12 @@ diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27
 
 ### The six things most likely to bite you
 
-1. **Nothing that changes once a night belongs on a page's query.** Six values
-   are precomputed and read back: card prices, deck costs, `sets.card_count`,
-   `decks.legend_card_id`, `cards.is_metal`, and the `card_facets` table. Every
-   one of them replaced a query that recomputed it per request. §26, §28.
+1. **Nothing that changes once a night belongs on a page's query.** Seven
+   values are precomputed and read back: card prices, deck costs,
+   `sets.card_count`, `decks.legend_card_id`, `cards.is_metal`, the
+   `card_facets` table, and `cards.art_from_card_id`. All but the last
+   replaced a query that recomputed it per request; that one removed a join.
+   §26, §28.
 2. **Promos reuse their original set's collector number**, so they are matched
    by product id, never by number. Their sets carry a NULL release date on
    purpose. §24.
@@ -53,6 +55,16 @@ diagnosis, and the diagnostic queries themselves cost 27k–45k each. §25, §27
 - A collection page — collection tracking ships but is reachable from nowhere.
 - `robots.txt` on the NAS still needs the sitemap line; submit to Search
   Console (§9).
+- **123 non-Metal cards still render no art** — OPP and JDG promos TCGplayer
+  never photographed. The Metal fix does not reach them: a promo is joined by
+  CODE, not by name (§24, §28).
+- **Wuhan's 2nd place is two maindeck cards short at the source**, imported
+  that way deliberately, so `check-event.mjs` reports 1 of 8 failing and
+  should (§6).
+- The derived columns are confirmed to survive a cron only *through the site*
+  — Metal art and `sets.card_count` both render correctly after the
+  2026-09-09 21:15 run. The SQL spot-check at the end of §28 has not been
+  run against production since; run it once.
 
 ---
 
@@ -313,6 +325,34 @@ full top 8 reliably. **It is an automated read, so verify before trusting:**
   September 4–6. **There is a preview article for every RQ**, titled
   "All Eyes on <city>", and it carries the dates and the venue. Use it.
 
+### Entering lists from a non-Riot source
+
+S4 Wuhan Regional Open came from
+`mobalytics.gg/riftbound/tournaments/<slug>`, and it differs from a Riot
+article in every way that matters:
+
+- **The summary page is not the data.** It carries players, Legends and a coarse
+  finish — 1st, 2nd, Top 4, Top 8 — and nothing else. The decklists live on
+  eight separate deck pages, each holding an `Overall Placement: #N`, which is
+  the only place a 1–8 ordering exists at all. Transcribe the eight pages.
+- **A summary you are handed will disagree with the source.** This event was
+  first entered from supplied summary data, then checked against the deck pages:
+  **six of the eight decks differed** — rune pools and maindeck contents. The
+  deck page won every time. Open all eight before importing, not after.
+- **The deck shape differs.** It still sums to 56 in `cards[]`, but as a
+  40-card maindeck that already contains the champion, plus 3 battlefields, 12
+  runes and the legend — and a **10-card sideboard**, which Riot's articles do
+  not print at all.
+- **The source can simply be incomplete.** Second place publishes **38**
+  maindeck cards, not 40. It is imported anyway, with the gap written into that
+  deck's own `notes` field so it renders on the page rather than hiding in
+  `_note`, and its cost is a floor. `check-event.mjs` reports 1 of 8 failing
+  as a result: **that failure is expected and must stay expected.**
+- **The date is a weekend described in prose** — "over the weekend of August
+  29th 2026", published 2026-08-31 — so it is §5's publication-date trap in a
+  new costume. Recorded under the Saturday; the era is identical either way,
+  because Vendetta had already released.
+
 Record the event under the **final** day, when the top 8 standings were set —
 Barcelona and Singapore both follow this.
 
@@ -334,10 +374,11 @@ event file's `_note`.
 | RQ Utrecht | 2026-06-14 | 8 | Both finalists brought the two *cheapest* decks; priciest deck came 8th |
 | RQ Hartford | 2026-06-21 | 8 | Winner had the priciest of the top 4 — the only event so far where that happened |
 | RQ Barcelona | 2026-08-23 | 8 | Winner's Ornn beat a runner-up Kennen costing ~3× as much |
+| S4 Wuhan Regional Open | 2026-08-29 | 8 | Not a Riot event and not a Riot source — see §6. Two distinct Diana lists in one top 8; 2nd place is short two cards at the source |
 | RQ Singapore | 2026-09-06 | 8 | Gorica's Akali over a Kennen-heavy top 8. Its article hid three traps — §6 |
 
 **1,419 cards** (1,180 catalogue + 239 promos, §24), ~1,340 daily prices,
-**9 events, 72 decks**, 100% price coverage on all decks. ~75 cards are
+**10 events, 80 decks**, 100% price coverage on all decks. ~75 cards are
 unpriced: promos TCGplayer lists without a market price, plus the original 22
 special-numbering printings.
 
@@ -1948,7 +1989,7 @@ This section is the general rule, and the four places it was violated.
 > **Does this value change between page views? If not, it does not belong in a
 > query the page runs.**
 
-Six things now answer "no" and are written by the nightly jobs:
+Eight things now answer "no" and are written by the nightly jobs:
 
 | Value | Written by | Replaced a query costing |
 |---|---|---|
@@ -2089,6 +2130,21 @@ So: after any change to the ingest jobs, check the next cron actually
 maintained them. `sum(sets.card_count)` should equal the card count,
 `count(decks.legend_card_id)` should equal the deck count, `card_facets` should
 hold ~37 rows, and `deck_cost_snapshots` for today should match `decks`.
+
+**Checked after a full cron cycle, 2026-09-09 21:15 UTC.** The catalog job
+rewrites every card row from TCGplayer, so the copied Metal art was the value
+most likely to be silently wiped. It was not: the live rankings page with Metal
+shown serves the Metal Teemo (`OPP-263/298`) from
+`card-image/small/ogn-263-298-<hash>.webp` — the base printing's mirrored
+object, which is the whole point of copying rather than joining — and the set
+filter's counts still come from `sets.card_count`. Both read from the live URL,
+per §10.
+
+`wrangler d1 info` the following morning read **857,808 `rows_read_24h` over
+3,389 `read_queries_24h` — about 253 rows per query**, against ~6,240 before
+this section's work, with a 5,000,000 daily ceiling. That is the first full 24h
+window lying entirely after the fixes, so it is the first figure that measures
+them rather than averaging in the outage.
 
 **Stop here.** There is no remaining query whose cost is out of proportion to
 the work it does. Everything past this point is optimising a page nobody is
